@@ -66,7 +66,7 @@
     "drizzle-orm": "^0.45.1",
     "elysia": "^1.4.22",
     "elysia-rate-limit": "^4.4.2",
-    "grafast": "^1.0.0-rc.4",
+    "grafast": "1.0.0-rc.3",
     "graphile-export": "^1.0.0-rc.3",
     "graphile-utils": "^5.0.0-rc.1",
     "graphql": "^16.12.0",
