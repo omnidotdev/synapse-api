@@ -22,6 +22,13 @@
       "when": 1770867562257,
       "tag": "0002_short_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770877073428,
+      "tag": "0003_strong_inhumans",
+      "breakpoints": true
     }
   ]
 }

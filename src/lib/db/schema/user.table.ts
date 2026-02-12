@@ -16,6 +16,7 @@ export const userTable = pgTable(
     email: text(),
     name: text(),
     avatarUrl: text(),
+    plan: text().notNull().default("free"),
     createdAt: generateDefaultDate(),
     updatedAt: generateDefaultDate(),
   },
