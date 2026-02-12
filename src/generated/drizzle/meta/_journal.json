@@ -15,6 +15,13 @@
       "when": 1769223294052,
       "tag": "0001_parallel_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770867562257,
+      "tag": "0002_short_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

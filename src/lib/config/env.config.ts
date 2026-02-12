@@ -22,6 +22,10 @@ export const {
   AUTHZ_ENABLED,
   /** Protect GraphQL routes (require authentication) */
   PROTECT_ROUTES,
+  /** Secret key for encrypting provider API keys at rest */
+  ENCRYPTION_KEY,
+  /** Shared secret for authenticating gateway-to-API internal requests */
+  GATEWAY_SECRET,
 } = process.env;
 
 export const isDevEnv = NODE_ENV === "development",
