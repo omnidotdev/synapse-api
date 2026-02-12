@@ -10,7 +10,9 @@ import type { KnipConfig } from "knip";
 const knipConfig: KnipConfig = {
   ignore: [
     "**/generated/**",
+    "scripts/**",
     "src/lib/config/drizzle.config.ts",
+    "src/lib/config/plans.config.ts",
     "src/scripts/**",
     "src/lib/db/db.ts",
     "src/lib/config/env.config.ts",
@@ -28,17 +30,13 @@ const knipConfig: KnipConfig = {
     "src/lib/providers/**",
   ],
   ignoreDependencies: [
-    "@changesets/changelog-github",
     "@changesets/cli",
-    "drizzle-kit",
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
     "@faker-js/faker",
   ],
-  ignoreBinaries: [
-    "tsc", // Bun provides TypeScript compilation
-  ],
+  ignoreBinaries: [],
   tags: ["-knipignore"],
 };
 

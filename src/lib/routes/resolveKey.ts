@@ -2,9 +2,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { GATEWAY_SECRET } from "lib/config/env.config";
+import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { decrypt, hashApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
 import { apiKeyTable, providerKeyTable, userTable } from "lib/db/schema";
+
+import type { PlanTier } from "lib/config/plans.config";
 
 /**
  * Internal endpoint for gateway API key resolution
@@ -74,11 +77,16 @@ const resolveKeyRoute = new Elysia().post(
       }));
     }
 
+    const plan = (user.plan ?? "free") as PlanTier;
+    const rateLimits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
+
     return {
       userId: user.id,
       workspaceId: apiKey.workspaceId,
       apiKeyId: apiKey.id,
       mode: apiKey.mode,
+      plan,
+      rateLimits,
       providerKeys,
     };
   },
