@@ -21,6 +21,7 @@
         "elysia-rate-limit": "^4.4.2",
         "grafast": "^1.0.0-rc.4",
         "graphile-export": "^1.0.0-rc.3",
+        "graphile-utils": "^5.0.0-rc.1",
         "graphql": "^16.12.0",
         "graphql-yoga": "^5.18.0",
         "jose": "^6.1.3",
@@ -874,7 +875,7 @@
 
     "postgraphile-plugin-connection-filter": ["postgraphile-plugin-connection-filter@3.0.0-rc.1", "", { "dependencies": { "@tsconfig/node20": "^20.1.4", "tslib": "^2.5.0" } }, "sha512-gVzLoY+OGAVhUWdcbtY4Hu2zSup8qZB+wlH54RgIa+tQSysWDDh5S3Opaz5uPwY6etcmzR5JjcApOmb1YYIzlA=="],
 
-    "postgres-array": ["postgres-array@2.0.0", "", {}, "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA=="],
+    "postgres-array": ["postgres-array@3.0.4", "", {}, "sha512-nAUSGfSDGOaOAEGwqsRY27GPOea7CNipJPOA7lPbdEpx5Kg3qzdP0AaWC5MlhTWV9s4hFX39nomVZ+C4tnGOJQ=="],
 
     "postgres-bytea": ["postgres-bytea@1.0.1", "", {}, "sha512-5+5HqXnsZPE65IJZSMkZtURARZelel2oXUEO8rH83VS/hxH5vv1uHquPg5wZs8yMAfdv971IU+kcPUczi7NVBQ=="],
 
@@ -1098,8 +1099,6 @@
 
     "@dataplan/pg/grafast": ["grafast@1.0.0-rc.3", "", { "dependencies": { "@graphile/lru": "^5.0.0-rc.2", "chalk": "^4.1.2", "debug": "^4.4.3", "eventemitter3": "^5.0.1", "graphile-config": "^1.0.0-rc.2", "graphql": "^16.9.0", "iterall": "^1.3.0", "tslib": "^2.8.1" }, "peerDependencies": { "@envelop/core": "^5.0.0" }, "optionalPeers": ["@envelop/core"] }, "sha512-sU/lYY3euAbaryjDnps0jxIUAY5LiC+Q9qhLpuIU2TfbqqsUKc9OSmdEyimfI/7UBq6c+0qgtwJ/Tx/qIcadBA=="],
 
-    "@dataplan/pg/postgres-array": ["postgres-array@3.0.4", "", {}, "sha512-nAUSGfSDGOaOAEGwqsRY27GPOea7CNipJPOA7lPbdEpx5Kg3qzdP0AaWC5MlhTWV9s4hFX39nomVZ+C4tnGOJQ=="],
-
     "@elysiajs/graphql-yoga/graphql-yoga": ["graphql-yoga@3.9.1", "", { "dependencies": { "@envelop/core": "^3.0.4", "@envelop/validation-cache": "^5.1.2", "@graphql-tools/executor": "^0.0.18", "@graphql-tools/schema": "^9.0.18", "@graphql-tools/utils": "^9.2.1", "@graphql-yoga/logger": "^0.0.1", "@graphql-yoga/subscription": "^3.1.0", "@whatwg-node/fetch": "^0.8.4", "@whatwg-node/server": "^0.7.3", "dset": "^3.1.1", "lru-cache": "^7.14.1", "tslib": "^2.3.1" }, "peerDependencies": { "graphql": "^15.2.0 || ^16.0.0" } }, "sha512-BB6EkN64VBTXWmf9Kym2OsVZFzBC0mAsQNo9eNB5xIr3t+x7qepQ34xW5A353NWol3Js3xpzxwIKFVF6l9VsPg=="],
 
     "@esbuild-kit/core-utils/esbuild": ["esbuild@0.18.20", "", { "optionalDependencies": { "@esbuild/android-arm": "0.18.20", "@esbuild/android-arm64": "0.18.20", "@esbuild/android-x64": "0.18.20", "@esbuild/darwin-arm64": "0.18.20", "@esbuild/darwin-x64": "0.18.20", "@esbuild/freebsd-arm64": "0.18.20", "@esbuild/freebsd-x64": "0.18.20", "@esbuild/linux-arm": "0.18.20", "@esbuild/linux-arm64": "0.18.20", "@esbuild/linux-ia32": "0.18.20", "@esbuild/linux-loong64": "0.18.20", "@esbuild/linux-mips64el": "0.18.20", "@esbuild/linux-ppc64": "0.18.20", "@esbuild/linux-riscv64": "0.18.20", "@esbuild/linux-s390x": "0.18.20", "@esbuild/linux-x64": "0.18.20", "@esbuild/netbsd-x64": "0.18.20", "@esbuild/openbsd-x64": "0.18.20", "@esbuild/sunos-x64": "0.18.20", "@esbuild/win32-arm64": "0.18.20", "@esbuild/win32-ia32": "0.18.20", "@esbuild/win32-x64": "0.18.20" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA=="],
@@ -1169,6 +1168,8 @@
     "micromatch/picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
 
     "pg-sql2/@graphile/lru": ["@graphile/lru@5.0.0-rc.2", "", { "dependencies": { "tslib": "^2.8.1" } }, "sha512-HGu7GoRTfF39fmX/JC4M4ro5v8ZgjTy0NjVxGM/Y0v+ttEL5tMaMksGwrupNpsJn6ZOiUz/mYSurh1xRA5NoWg=="],
+
+    "pg-types/postgres-array": ["postgres-array@2.0.0", "", {}, "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA=="],
 
     "postgraphile/@graphile/lru": ["@graphile/lru@5.0.0-rc.2", "", { "dependencies": { "tslib": "^2.8.1" } }, "sha512-HGu7GoRTfF39fmX/JC4M4ro5v8ZgjTy0NjVxGM/Y0v+ttEL5tMaMksGwrupNpsJn6ZOiUz/mYSurh1xRA5NoWg=="],
 
