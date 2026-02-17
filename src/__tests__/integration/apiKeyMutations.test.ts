@@ -90,7 +90,7 @@ const revokeApiKeyResolver = async (
 };
 
 describe("createApiKey resolver", () => {
-	test("returns rawKey starting with sk-syn-, apiKeyId, and keyHint", async () => {
+	test("returns rawKey starting with synapse_, apiKeyId, and keyHint", async () => {
 		const user = await userFactory.create(ctx.db);
 
 		const result = await createApiKeyResolver(
@@ -98,7 +98,7 @@ describe("createApiKey resolver", () => {
 			buildContext(user),
 		);
 
-		expect(result.rawKey).toMatch(/^sk-syn-/);
+		expect(result.rawKey).toMatch(/^synapse_/);
 		expect(result.apiKeyId).toBeDefined();
 		expect(result.keyHint).toHaveLength(4);
 		expect(result.rawKey.endsWith(result.keyHint)).toBe(true);

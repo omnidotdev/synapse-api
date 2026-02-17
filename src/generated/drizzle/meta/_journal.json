@@ -29,6 +29,13 @@
       "when": 1770877073428,
       "tag": "0003_strong_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771360346550,
+      "tag": "0004_dark_power_man",
+      "breakpoints": true
     }
   ]
 }

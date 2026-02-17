@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-const API_KEY_PREFIX = "sk-syn-";
+const API_KEY_PREFIX = "synapse_";
 const KEY_BYTES = 16;
 
 /**

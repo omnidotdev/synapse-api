@@ -34,7 +34,7 @@ const ctx = setupTestContext();
 
 describe("POST /internal/resolve-key", () => {
 	test("returns 401 when gateway secret is missing", async () => {
-		const res = await resolveKey("sk-syn-fake");
+		const res = await resolveKey("synapse_fake");
 		expect(res.status).toBe(401);
 
 		const body = await res.json();
@@ -42,7 +42,7 @@ describe("POST /internal/resolve-key", () => {
 	});
 
 	test("returns 401 when gateway secret is wrong", async () => {
-		const res = await resolveKey("sk-syn-fake", "wrong-secret");
+		const res = await resolveKey("synapse_fake", "wrong-secret");
 		expect(res.status).toBe(401);
 
 		const body = await res.json();
@@ -85,7 +85,7 @@ describe("POST /internal/resolve-key", () => {
 	});
 
 	test("returns invalid_key for unknown key", async () => {
-		const res = await resolveKey("sk-syn-nonexistent", GATEWAY_SECRET);
+		const res = await resolveKey("synapse_nonexistent", GATEWAY_SECRET);
 		expect(res.status).toBe(404);
 
 		const body = await res.json();

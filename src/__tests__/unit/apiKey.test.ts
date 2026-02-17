@@ -5,7 +5,7 @@ import { generateApiKey, hashApiKey } from "lib/crypto";
 describe("API key generation", () => {
 	test("generates key with correct prefix", () => {
 		const { raw } = generateApiKey();
-		expect(raw.startsWith("sk-syn-")).toBe(true);
+		expect(raw.startsWith("synapse_")).toBe(true);
 	});
 
 	test("generates unique keys", () => {
