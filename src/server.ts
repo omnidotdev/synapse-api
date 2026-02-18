@@ -22,7 +22,11 @@ import { dbPool, pgPool } from "lib/db";
 import ensureDatabase from "lib/db/ensureDatabase";
 import createGraphqlContext from "lib/graphql/createGraphqlContext";
 import { armorPlugin, createAuthenticationPlugin } from "lib/graphql/plugins";
-import { reportUsageRoute, resolveKeyRoute } from "lib/routes";
+import {
+  provisionKeyRoute,
+  reportUsageRoute,
+  resolveKeyRoute,
+} from "lib/routes";
 
 // ensure database exists before starting
 await ensureDatabase();
@@ -91,6 +95,7 @@ const app = new Elysia({
   })
   // internal gateway routes
   .use(resolveKeyRoute)
+  .use(provisionKeyRoute)
   .use(reportUsageRoute)
   .use(webhooks)
   .use(
