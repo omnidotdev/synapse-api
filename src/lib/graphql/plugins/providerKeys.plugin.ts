@@ -26,7 +26,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
       """
       Delete a provider key. Verifies ownership before deletion.
       """
-      deleteProviderKey(id: UUID!): Boolean
+      removeProviderKey(id: UUID!): Boolean
     }
   `,
   resolvers: {
@@ -70,7 +70,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         return providerKey;
       },
 
-      async deleteProviderKey(
+      async removeProviderKey(
         _source: unknown,
         args: { id: string },
         ctx: GraphQLContext,

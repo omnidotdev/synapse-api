@@ -10,7 +10,7 @@ import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
  * Usage aggregation queries for charts and breakdowns
  */
 const usageAggregationPlugin = makeExtendSchemaPlugin({
-	typeDefs: gql`
+  typeDefs: gql`
     type ModelBreakdown {
       model: String!
       provider: String!
@@ -38,57 +38,57 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
       usageBreakdown(startDate: String!, endDate: String!): UsageBreakdown
     }
   `,
-	resolvers: {
-		Query: {
-			async usageBreakdown(
-				_source: unknown,
-				args: { startDate: string; endDate: string },
-				ctx: GraphQLContext,
-			) {
-				const { observer, db } = ctx;
+  resolvers: {
+    Query: {
+      async usageBreakdown(
+        _source: unknown,
+        args: { startDate: string; endDate: string },
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
 
-				if (!observer) {
-					throw new GraphQLError("Authentication required", {
-						extensions: { code: "UNAUTHENTICATED" },
-					});
-				}
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
 
-				const dateFilter = and(
-					eq(usageEventTable.userId, observer.id),
-					gte(usageEventTable.createdAt, args.startDate),
-					lte(usageEventTable.createdAt, args.endDate),
-				);
+        const dateFilter = and(
+          eq(usageEventTable.userId, observer.id),
+          gte(usageEventTable.createdAt, args.startDate),
+          lte(usageEventTable.createdAt, args.endDate),
+        );
 
-				// Per-model breakdown
-				const byModel = await db
-					.select({
-						model: usageEventTable.model,
-						provider: usageEventTable.provider,
-						inputTokens: sql<number>`sum(${usageEventTable.inputTokens})::int`,
-						outputTokens: sql<number>`sum(${usageEventTable.outputTokens})::int`,
-						requests: sql<number>`count(*)::int`,
-					})
-					.from(usageEventTable)
-					.where(dateFilter)
-					.groupBy(usageEventTable.model, usageEventTable.provider);
+        // Per-model breakdown
+        const byModel = await db
+          .select({
+            model: usageEventTable.model,
+            provider: usageEventTable.provider,
+            inputTokens: sql<number>`sum(${usageEventTable.inputTokens})::int`,
+            outputTokens: sql<number>`sum(${usageEventTable.outputTokens})::int`,
+            requests: sql<number>`count(*)::int`,
+          })
+          .from(usageEventTable)
+          .where(dateFilter)
+          .groupBy(usageEventTable.model, usageEventTable.provider);
 
-				// Daily breakdown
-				const byDay = await db
-					.select({
-						date: sql<string>`date_trunc('day', ${usageEventTable.createdAt})::date::text`,
-						inputTokens: sql<number>`sum(${usageEventTable.inputTokens})::int`,
-						outputTokens: sql<number>`sum(${usageEventTable.outputTokens})::int`,
-						requests: sql<number>`count(*)::int`,
-					})
-					.from(usageEventTable)
-					.where(dateFilter)
-					.groupBy(sql`date_trunc('day', ${usageEventTable.createdAt})`)
-					.orderBy(sql`date_trunc('day', ${usageEventTable.createdAt})`);
+        // Daily breakdown
+        const byDay = await db
+          .select({
+            date: sql<string>`date_trunc('day', ${usageEventTable.createdAt})::date::text`,
+            inputTokens: sql<number>`sum(${usageEventTable.inputTokens})::int`,
+            outputTokens: sql<number>`sum(${usageEventTable.outputTokens})::int`,
+            requests: sql<number>`count(*)::int`,
+          })
+          .from(usageEventTable)
+          .where(dateFilter)
+          .groupBy(sql`date_trunc('day', ${usageEventTable.createdAt})`)
+          .orderBy(sql`date_trunc('day', ${usageEventTable.createdAt})`);
 
-				return { byModel, byDay };
-			},
-		},
-	},
+        return { byModel, byDay };
+      },
+    },
+  },
 });
 
 export default usageAggregationPlugin;

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
@@ -10,15 +10,15 @@ import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
  * Workspace CRUD mutations
  */
 const workspacesPlugin = makeExtendSchemaPlugin({
-	typeDefs: gql`
-    input CreateWorkspaceInput {
+  typeDefs: gql`
+    input NewWorkspaceInput {
       organizationId: UUID!
       name: String!
       slug: String!
       description: String
     }
 
-    input UpdateWorkspaceInput {
+    input PatchWorkspaceInput {
       name: String
       slug: String
       description: String
@@ -37,138 +37,138 @@ const workspacesPlugin = makeExtendSchemaPlugin({
       """
       Create a new workspace within an organization
       """
-      createWorkspace(input: CreateWorkspaceInput!): WorkspaceResult
+      addWorkspace(input: NewWorkspaceInput!): WorkspaceResult
 
       """
       Update a workspace's details
       """
-      updateWorkspace(id: UUID!, input: UpdateWorkspaceInput!): WorkspaceResult
+      patchWorkspace(id: UUID!, input: PatchWorkspaceInput!): WorkspaceResult
 
       """
       Delete a workspace
       """
-      deleteWorkspace(id: UUID!): Boolean
+      removeWorkspace(id: UUID!): Boolean
     }
 
     extend type Query {
       """
       List workspaces for an organization
       """
-      workspaces(organizationId: UUID!): [WorkspaceResult!]!
+      orgWorkspaces(organizationId: UUID!): [WorkspaceResult!]!
     }
   `,
-	resolvers: {
-		Query: {
-			async workspaces(
-				_source: unknown,
-				args: { organizationId: string },
-				ctx: GraphQLContext,
-			) {
-				const { observer, db } = ctx;
+  resolvers: {
+    Query: {
+      async orgWorkspaces(
+        _source: unknown,
+        args: { organizationId: string },
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
 
-				if (!observer) {
-					throw new GraphQLError("Authentication required", {
-						extensions: { code: "UNAUTHENTICATED" },
-					});
-				}
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
 
-				return db
-					.select()
-					.from(workspaceTable)
-					.where(eq(workspaceTable.organizationId, args.organizationId));
-			},
-		},
-		Mutation: {
-			async createWorkspace(
-				_source: unknown,
-				args: {
-					input: {
-						organizationId: string;
-						name: string;
-						slug: string;
-						description?: string;
-					};
-				},
-				ctx: GraphQLContext,
-			) {
-				const { observer, db } = ctx;
+        return db
+          .select()
+          .from(workspaceTable)
+          .where(eq(workspaceTable.organizationId, args.organizationId));
+      },
+    },
+    Mutation: {
+      async addWorkspace(
+        _source: unknown,
+        args: {
+          input: {
+            organizationId: string;
+            name: string;
+            slug: string;
+            description?: string;
+          };
+        },
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
 
-				if (!observer) {
-					throw new GraphQLError("Authentication required", {
-						extensions: { code: "UNAUTHENTICATED" },
-					});
-				}
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
 
-				const { organizationId, name, slug, description } = args.input;
+        const { organizationId, name, slug, description } = args.input;
 
-				const [workspace] = await db
-					.insert(workspaceTable)
-					.values({
-						organizationId,
-						name,
-						slug,
-						description: description ?? null,
-					})
-					.returning();
+        const [workspace] = await db
+          .insert(workspaceTable)
+          .values({
+            organizationId,
+            name,
+            slug,
+            description: description ?? null,
+          })
+          .returning();
 
-				return workspace;
-			},
+        return workspace;
+      },
 
-			async updateWorkspace(
-				_source: unknown,
-				args: {
-					id: string;
-					input: { name?: string; slug?: string; description?: string };
-				},
-				ctx: GraphQLContext,
-			) {
-				const { observer, db } = ctx;
+      async patchWorkspace(
+        _source: unknown,
+        args: {
+          id: string;
+          input: { name?: string; slug?: string; description?: string };
+        },
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
 
-				if (!observer) {
-					throw new GraphQLError("Authentication required", {
-						extensions: { code: "UNAUTHENTICATED" },
-					});
-				}
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
 
-				const set: Record<string, unknown> = {
-					updatedAt: new Date().toISOString(),
-				};
-				if (args.input.name !== undefined) set.name = args.input.name;
-				if (args.input.slug !== undefined) set.slug = args.input.slug;
-				if (args.input.description !== undefined)
-					set.description = args.input.description;
+        const set: Record<string, unknown> = {
+          updatedAt: new Date().toISOString(),
+        };
+        if (args.input.name !== undefined) set.name = args.input.name;
+        if (args.input.slug !== undefined) set.slug = args.input.slug;
+        if (args.input.description !== undefined)
+          set.description = args.input.description;
 
-				const [workspace] = await db
-					.update(workspaceTable)
-					.set(set)
-					.where(eq(workspaceTable.id, args.id))
-					.returning();
+        const [workspace] = await db
+          .update(workspaceTable)
+          .set(set)
+          .where(eq(workspaceTable.id, args.id))
+          .returning();
 
-				return workspace;
-			},
+        return workspace;
+      },
 
-			async deleteWorkspace(
-				_source: unknown,
-				args: { id: string },
-				ctx: GraphQLContext,
-			) {
-				const { observer, db } = ctx;
+      async removeWorkspace(
+        _source: unknown,
+        args: { id: string },
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
 
-				if (!observer) {
-					throw new GraphQLError("Authentication required", {
-						extensions: { code: "UNAUTHENTICATED" },
-					});
-				}
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
 
-				const [deleted] = await db
-					.delete(workspaceTable)
-					.where(eq(workspaceTable.id, args.id))
-					.returning();
+        const [deleted] = await db
+          .delete(workspaceTable)
+          .where(eq(workspaceTable.id, args.id))
+          .returning();
 
-				return !!deleted;
-			},
-		},
-	},
+        return !!deleted;
+      },
+    },
+  },
 });
 
 export default workspacesPlugin;

@@ -70,15 +70,22 @@ const generateGraphqlSchema = async () => {
   if (!existsSync(generatedDirectory))
     mkdirSync(generatedDirectory, { recursive: true });
 
-  await exportSchema(schema, schemaFilePath, {
-    mode: "typeDefs",
-  });
+  try {
+    await exportSchema(schema, schemaFilePath, {
+      mode: "typeDefs",
+    });
 
-  await replaceInFile({
-    files: schemaFilePath,
-    from: /\/\* eslint-disable graphile-export\/export-instances, graphile-export\/export-methods, graphile-export\/exhaustive-deps \*\//g,
-    to: "// @ts-nocheck",
-  });
+    await replaceInFile({
+      files: schemaFilePath,
+      from: /\/\* eslint-disable graphile-export\/export-instances, graphile-export\/export-methods, graphile-export\/exhaustive-deps \*\//g,
+      to: "// @ts-nocheck",
+    });
+  } catch (err) {
+    console.warn(
+      "[graphql:generate] Schema export failed (non-fatal):",
+      (err as Error).message,
+    );
+  }
 
   // emit SDL
   writeFileSync(`${generatedDirectory}/schema.graphql`, printSchema(schema));

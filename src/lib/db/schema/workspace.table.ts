@@ -9,21 +9,24 @@ import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
  * Workspaces are scoped to an organization (managed by Gatekeeper).
  */
 export const workspaceTable = pgTable(
-	"workspace",
-	{
-		id: generateDefaultId(),
-		organizationId: uuid().notNull(),
-		slug: text().notNull(),
-		name: text().notNull(),
-		description: text(),
-		createdAt: generateDefaultDate(),
-		updatedAt: generateDefaultDate(),
-	},
-	(table) => [
-		uniqueIndex().on(table.id),
-		uniqueIndex("workspace_org_slug_unique").on(table.organizationId, table.slug),
-		index().on(table.organizationId),
-	],
+  "workspace",
+  {
+    id: generateDefaultId(),
+    organizationId: uuid().notNull(),
+    slug: text().notNull(),
+    name: text().notNull(),
+    description: text(),
+    createdAt: generateDefaultDate(),
+    updatedAt: generateDefaultDate(),
+  },
+  (table) => [
+    uniqueIndex().on(table.id),
+    uniqueIndex("workspace_org_slug_unique").on(
+      table.organizationId,
+      table.slug,
+    ),
+    index().on(table.organizationId),
+  ],
 );
 
 export type InsertWorkspace = InferInsertModel<typeof workspaceTable>;

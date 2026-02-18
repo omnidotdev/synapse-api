@@ -10,11 +10,10 @@ import {
   usageAggregationPlugin,
   workspacesPlugin,
 } from "lib/graphql/plugins";
-
 import { DATABASE_URL, isDevEnv } from "./env.config";
 
 /**
- * Graphile preset.
+ * Graphile preset
  */
 const graphilePreset: GraphileConfig.Preset = {
   extends: [
@@ -22,7 +21,13 @@ const graphilePreset: GraphileConfig.Preset = {
     PgSimplifyInflectionPreset,
     PostGraphileConnectionFilterPreset,
   ],
-  plugins: [apiKeysPlugin, preferencesPlugin, providerKeysPlugin, usageAggregationPlugin, workspacesPlugin],
+  plugins: [
+    apiKeysPlugin,
+    preferencesPlugin,
+    providerKeysPlugin,
+    usageAggregationPlugin,
+    workspacesPlugin,
+  ],
   pgServices: [makePgService({ connectionString: DATABASE_URL })],
   grafast: { explain: isDevEnv },
 };

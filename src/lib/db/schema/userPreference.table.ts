@@ -9,22 +9,19 @@ import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
  * User preference table
  */
 export const userPreferenceTable = pgTable(
-	"user_preference",
-	{
-		id: generateDefaultId(),
-		userId: uuid()
-			.notNull()
-			.references(() => userTable.id)
-			.unique(),
-		defaultProvider: text(),
-		notifyUsageThreshold: boolean().notNull().default(true),
-		notifyKeyExpiry: boolean().notNull().default(true),
-		updatedAt: generateDefaultDate(),
-	},
-	(table) => [
-		uniqueIndex().on(table.id),
-		uniqueIndex().on(table.userId),
-	],
+  "user_preference",
+  {
+    id: generateDefaultId(),
+    userId: uuid()
+      .notNull()
+      .references(() => userTable.id)
+      .unique(),
+    defaultProvider: text(),
+    notifyUsageThreshold: boolean().notNull().default(true),
+    notifyKeyExpiry: boolean().notNull().default(true),
+    updatedAt: generateDefaultDate(),
+  },
+  (table) => [uniqueIndex().on(table.id), uniqueIndex().on(table.userId)],
 );
 
 export type InsertUserPreference = InferInsertModel<typeof userPreferenceTable>;

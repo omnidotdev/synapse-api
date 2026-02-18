@@ -12,13 +12,13 @@ import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
  */
 const apiKeysPlugin = makeExtendSchemaPlugin({
   typeDefs: gql`
-    input CreateApiKeyInput {
+    input GenerateApiKeyInput {
       name: String!
       mode: String!
       workspaceId: UUID
     }
 
-    type CreateApiKeyPayload {
+    type GenerateApiKeyPayload {
       rawKey: String!
       apiKeyId: UUID!
       keyHint: String!
@@ -28,7 +28,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
       """
       Generate a new API key. The raw key is returned once and never stored.
       """
-      createApiKey(input: CreateApiKeyInput!): CreateApiKeyPayload
+      generateApiKey(input: GenerateApiKeyInput!): GenerateApiKeyPayload
 
       """
       Revoke an API key by setting its revokedAt timestamp.
@@ -38,7 +38,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
   `,
   resolvers: {
     Mutation: {
-      async createApiKey(
+      async generateApiKey(
         _source: unknown,
         args: { input: { name: string; mode: string; workspaceId?: string } },
         ctx: GraphQLContext,
