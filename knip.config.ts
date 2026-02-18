@@ -34,6 +34,7 @@ const knipConfig: KnipConfig = {
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
+    // Used in test factories (src/test/), which are in the ignore list
     "@faker-js/faker",
   ],
   ignoreBinaries: [],
