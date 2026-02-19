@@ -49,7 +49,6 @@ const resolveProviderKeysRoute = new Elysia().post(
         modelPreference: k.modelPreference ?? null,
       }));
     } catch (e) {
-      // biome-ignore lint/suspicious/noConsole: structured error logging
       console.error("key decryption failed", e);
       set.status = 500;
       return { error: "key_decryption_failed" };
