@@ -8,7 +8,7 @@ import { providerKeyTable } from "lib/db/schema";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 /**
- * Provider key management mutations
+ * Provider key management queries and mutations
  */
 const providerKeysPlugin = makeExtendSchemaPlugin({
   typeDefs: gql`
@@ -16,6 +16,13 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
       provider: String!
       key: String!
       modelPreference: String
+    }
+
+    extend type Query {
+      """
+      List provider keys for the current user.
+      """
+      myProviderKeys: [ProviderKey!]!
     }
 
     extend type Mutation {
@@ -31,6 +38,26 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
     }
   `,
   resolvers: {
+    Query: {
+      async myProviderKeys(
+        _source: unknown,
+        _args: Record<string, never>,
+        ctx: GraphQLContext,
+      ) {
+        const { observer, db } = ctx;
+
+        if (!observer) {
+          throw new GraphQLError("Authentication required", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
+        }
+
+        return db
+          .select()
+          .from(providerKeyTable)
+          .where(eq(providerKeyTable.userId, observer.id));
+      },
+    },
     Mutation: {
       async setProviderKey(
         _source: unknown,
