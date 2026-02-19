@@ -34,7 +34,9 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
     Mutation: {
       async setProviderKey(
         _source: unknown,
-        args: { input: { provider: string; key: string; modelPreference?: string } },
+        args: {
+          input: { provider: string; key: string; modelPreference?: string };
+        },
         ctx: GraphQLContext,
       ) {
         const { observer, db } = ctx;

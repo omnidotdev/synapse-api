@@ -26,6 +26,7 @@ import {
   provisionKeyRoute,
   reportUsageRoute,
   resolveKeyRoute,
+  resolveProviderKeysRoute,
   usageRoute,
 } from "lib/routes";
 
@@ -96,6 +97,7 @@ const app = new Elysia({
   })
   // internal gateway routes
   .use(resolveKeyRoute)
+  .use(resolveProviderKeysRoute)
   .use(provisionKeyRoute)
   .use(reportUsageRoute)
   .use(usageRoute)
