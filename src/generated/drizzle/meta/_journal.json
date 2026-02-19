@@ -36,6 +36,13 @@
       "when": 1771360346550,
       "tag": "0004_dark_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771527164598,
+      "tag": "0005_fancy_spitfire",
+      "breakpoints": true
     }
   ]
 }

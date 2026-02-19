@@ -18,6 +18,7 @@ export const providerKeyTable = pgTable(
     provider: text().notNull(),
     encryptedKey: text().notNull(),
     keyHint: text().notNull(),
+    modelPreference: text("model_preference"),
     createdAt: generateDefaultDate(),
     updatedAt: generateDefaultDate(),
   },

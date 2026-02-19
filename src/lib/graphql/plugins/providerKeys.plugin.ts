@@ -15,6 +15,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
     input SetProviderKeyInput {
       provider: String!
       key: String!
+      modelPreference: String
     }
 
     extend type Mutation {
@@ -33,7 +34,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
     Mutation: {
       async setProviderKey(
         _source: unknown,
-        args: { input: { provider: string; key: string } },
+        args: { input: { provider: string; key: string; modelPreference?: string } },
         ctx: GraphQLContext,
       ) {
         const { observer, db } = ctx;
@@ -44,7 +45,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
           });
         }
 
-        const { provider, key } = args.input;
+        const { provider, key, modelPreference } = args.input;
         const encryptedKey = encrypt(key);
         // Last 4 characters of the raw key as a hint
         const keyHint = key.slice(-4);
@@ -56,12 +57,14 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             provider,
             encryptedKey,
             keyHint,
+            modelPreference: modelPreference ?? null,
           })
           .onConflictDoUpdate({
             target: [providerKeyTable.userId, providerKeyTable.provider],
             set: {
               encryptedKey,
               keyHint,
+              modelPreference: modelPreference ?? null,
               updatedAt: new Date().toISOString(),
             },
           })

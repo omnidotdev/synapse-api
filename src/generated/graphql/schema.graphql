@@ -6,21 +6,18 @@ interface Node {
   id: ID!
 }
 
-type ProviderKey implements Node {
+type Workspace implements Node {
   """
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
   """
   id: ID!
   rowId: UUID!
-  userId: UUID!
-  provider: String!
-  encryptedKey: String!
-  keyHint: String!
+  organizationId: UUID!
+  slug: String!
+  name: String!
+  description: String
   createdAt: Datetime
   updatedAt: Datetime
-
-  """Reads a single `User` that is related to this `ProviderKey`."""
-  user: User
 }
 
 """
@@ -36,6 +33,24 @@ that do not conform to both ISO 8601 and RFC 3339 may be coerced, which may lead
 to unexpected results.
 """
 scalar Datetime
+
+type ProviderKey implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  userId: UUID!
+  provider: String!
+  encryptedKey: String!
+  keyHint: String!
+  createdAt: Datetime
+  updatedAt: Datetime
+  modelPreference: String
+
+  """Reads a single `User` that is related to this `ProviderKey`."""
+  user: User
+}
 
 type User implements Node {
   """
@@ -890,20 +905,6 @@ type UserPreference implements Node {
   user: User
 }
 
-type Workspace implements Node {
-  """
-  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
-  """
-  id: ID!
-  rowId: UUID!
-  organizationId: UUID!
-  slug: String!
-  name: String!
-  description: String
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
 """A connection to a list of `Workspace` values."""
 type WorkspaceConnection {
   """A list of `Workspace` objects."""
@@ -1078,52 +1079,6 @@ enum UserPreferenceOrderBy {
   USER_ID_DESC
 }
 
-"""The output of our create `ProviderKey` mutation."""
-type CreateProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was created by this mutation."""
-  providerKey: ProviderKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the create `ProviderKey` mutation."""
-input CreateProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` to be created by this mutation."""
-  providerKey: ProviderKeyInput!
-}
-
-"""An input for mutations affecting `ProviderKey`"""
-input ProviderKeyInput {
-  rowId: UUID
-  userId: UUID!
-  provider: String!
-  encryptedKey: String!
-  keyHint: String!
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
 """The output of our create `Workspace` mutation."""
 type CreateWorkspacePayload {
   """
@@ -1168,6 +1123,53 @@ input WorkspaceInput {
   description: String
   createdAt: Datetime
   updatedAt: Datetime
+}
+
+"""The output of our create `ProviderKey` mutation."""
+type CreateProviderKeyPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `ProviderKey` that was created by this mutation."""
+  providerKey: ProviderKey
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `ProviderKey`. May be used by Relay 1."""
+  providerKeyEdge(
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProviderKeyEdge
+}
+
+"""All input for the create `ProviderKey` mutation."""
+input CreateProviderKeyInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """The `ProviderKey` to be created by this mutation."""
+  providerKey: ProviderKeyInput!
+}
+
+"""An input for mutations affecting `ProviderKey`"""
+input ProviderKeyInput {
+  rowId: UUID
+  userId: UUID!
+  provider: String!
+  encryptedKey: String!
+  keyHint: String!
+  createdAt: Datetime
+  updatedAt: Datetime
+  modelPreference: String
 }
 
 """The output of our create `User` mutation."""
@@ -1363,76 +1365,6 @@ input UsageEventInput {
   createdAt: Datetime
 }
 
-"""The output of our update `ProviderKey` mutation."""
-type UpdateProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was updated by this mutation."""
-  providerKey: ProviderKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the `updateProviderKeyById` mutation."""
-input UpdateProviderKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ProviderKey` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `ProviderKey` being updated.
-  """
-  patch: ProviderKeyPatch!
-}
-
-"""
-Represents an update to a `ProviderKey`. Fields that are set will be updated.
-"""
-input ProviderKeyPatch {
-  rowId: UUID
-  userId: UUID
-  provider: String
-  encryptedKey: String
-  keyHint: String
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
-"""All input for the `updateProviderKey` mutation."""
-input UpdateProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `ProviderKey` being updated.
-  """
-  patch: ProviderKeyPatch!
-}
-
 """The output of our update `Workspace` mutation."""
 type UpdateWorkspacePayload {
   """
@@ -1501,6 +1433,77 @@ input UpdateWorkspaceInput {
   An object where the defined keys will be set on the `Workspace` being updated.
   """
   patch: WorkspacePatch!
+}
+
+"""The output of our update `ProviderKey` mutation."""
+type UpdateProviderKeyPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `ProviderKey` that was updated by this mutation."""
+  providerKey: ProviderKey
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `ProviderKey`. May be used by Relay 1."""
+  providerKeyEdge(
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProviderKeyEdge
+}
+
+"""All input for the `updateProviderKeyById` mutation."""
+input UpdateProviderKeyByIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `ProviderKey` to be updated.
+  """
+  id: ID!
+
+  """
+  An object where the defined keys will be set on the `ProviderKey` being updated.
+  """
+  patch: ProviderKeyPatch!
+}
+
+"""
+Represents an update to a `ProviderKey`. Fields that are set will be updated.
+"""
+input ProviderKeyPatch {
+  rowId: UUID
+  userId: UUID
+  provider: String
+  encryptedKey: String
+  keyHint: String
+  createdAt: Datetime
+  updatedAt: Datetime
+  modelPreference: String
+}
+
+"""All input for the `updateProviderKey` mutation."""
+input UpdateProviderKeyInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+
+  """
+  An object where the defined keys will be set on the `ProviderKey` being updated.
+  """
+  patch: ProviderKeyPatch!
 }
 
 """The output of our update `User` mutation."""
@@ -1835,54 +1838,6 @@ input UpdateUsageEventInput {
   patch: UsageEventPatch!
 }
 
-"""The output of our delete `ProviderKey` mutation."""
-type DeleteProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was deleted by this mutation."""
-  providerKey: ProviderKey
-  deletedProviderKeyId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the `deleteProviderKeyById` mutation."""
-input DeleteProviderKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ProviderKey` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteProviderKey` mutation."""
-input DeleteProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
 """The output of our delete `Workspace` mutation."""
 type DeleteWorkspacePayload {
   """
@@ -1923,6 +1878,54 @@ input DeleteWorkspaceByIdInput {
 
 """All input for the `deleteWorkspace` mutation."""
 input DeleteWorkspaceInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+  rowId: UUID!
+}
+
+"""The output of our delete `ProviderKey` mutation."""
+type DeleteProviderKeyPayload {
+  """
+  The exact same `clientMutationId` that was provided in the mutation input,
+  unchanged and unused. May be used by a client to track mutations.
+  """
+  clientMutationId: String
+
+  """The `ProviderKey` that was deleted by this mutation."""
+  providerKey: ProviderKey
+  deletedProviderKeyId: ID
+
+  """
+  Our root query field type. Allows us to run any query from our mutation payload.
+  """
+  query: Query
+
+  """An edge for our `ProviderKey`. May be used by Relay 1."""
+  providerKeyEdge(
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
+  ): ProviderKeyEdge
+}
+
+"""All input for the `deleteProviderKeyById` mutation."""
+input DeleteProviderKeyByIdInput {
+  """
+  An arbitrary string value with no semantic meaning. Will be included in the
+  payload verbatim. May be used to track mutations by the client.
+  """
+  clientMutationId: String
+
+  """
+  The globally unique `ID` which will identify a single `ProviderKey` to be deleted.
+  """
+  id: ID!
+}
+
+"""All input for the `deleteProviderKey` mutation."""
+input DeleteProviderKeyInput {
   """
   An arbitrary string value with no semantic meaning. Will be included in the
   payload verbatim. May be used to track mutations by the client.
@@ -2180,6 +2183,7 @@ type UserPreferences {
 input SetProviderKeyInput {
   provider: String!
   key: String!
+  modelPreference: String
 }
 
 type ModelBreakdown {
@@ -2221,11 +2225,11 @@ type Query implements Node {
     id: ID!
   ): Node
 
-  """Get a single `ProviderKey`."""
-  providerKey(rowId: UUID!): ProviderKey
-
   """Get a single `Workspace`."""
   workspace(rowId: UUID!): Workspace
+
+  """Get a single `ProviderKey`."""
+  providerKey(rowId: UUID!): ProviderKey
 
   """Get a single `User`."""
   user(rowId: UUID!): User
@@ -2248,6 +2252,12 @@ type Query implements Node {
   """Get a single `UsageEvent`."""
   usageEvent(rowId: UUID!): UsageEvent
 
+  """Reads a single `Workspace` using its globally unique `ID`."""
+  workspaceById(
+    """The globally unique `ID` to be used in selecting a single `Workspace`."""
+    id: ID!
+  ): Workspace
+
   """Reads a single `ProviderKey` using its globally unique `ID`."""
   providerKeyById(
     """
@@ -2255,12 +2265,6 @@ type Query implements Node {
     """
     id: ID!
   ): ProviderKey
-
-  """Reads a single `Workspace` using its globally unique `ID`."""
-  workspaceById(
-    """The globally unique `ID` to be used in selecting a single `Workspace`."""
-    id: ID!
-  ): Workspace
 
   """Reads a single `User` using its globally unique `ID`."""
   userById(
@@ -2289,40 +2293,6 @@ type Query implements Node {
     """
     id: ID!
   ): UsageEvent
-
-  """Reads and enables pagination through a set of `ProviderKey`."""
-  providerKeys(
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ProviderKeyCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ProviderKeyFilter
-
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ProviderKeyConnection
 
   """Reads and enables pagination through a set of `Workspace`."""
   workspaces(
@@ -2357,6 +2327,40 @@ type Query implements Node {
     """The method to use when ordering `Workspace`."""
     orderBy: [WorkspaceOrderBy!] = [PRIMARY_KEY_ASC]
   ): WorkspaceConnection
+
+  """Reads and enables pagination through a set of `ProviderKey`."""
+  providerKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ProviderKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ProviderKeyFilter
+
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ProviderKeyConnection
 
   """Reads and enables pagination through a set of `User`."""
   users(
@@ -2508,14 +2512,6 @@ type Query implements Node {
 The root mutation type which contains root level fields which mutate data.
 """
 type Mutation {
-  """Creates a single `ProviderKey`."""
-  createProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateProviderKeyInput!
-  ): CreateProviderKeyPayload
-
   """Creates a single `Workspace`."""
   createWorkspace(
     """
@@ -2523,6 +2519,14 @@ type Mutation {
     """
     input: CreateWorkspaceInput!
   ): CreateWorkspacePayload
+
+  """Creates a single `ProviderKey`."""
+  createProviderKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: CreateProviderKeyInput!
+  ): CreateProviderKeyPayload
 
   """Creates a single `User`."""
   createUser(
@@ -2556,6 +2560,22 @@ type Mutation {
     input: CreateUsageEventInput!
   ): CreateUsageEventPayload
 
+  """Updates a single `Workspace` using its globally unique id and a patch."""
+  updateWorkspaceById(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateWorkspaceByIdInput!
+  ): UpdateWorkspacePayload
+
+  """Updates a single `Workspace` using a unique key and a patch."""
+  updateWorkspace(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateWorkspaceInput!
+  ): UpdateWorkspacePayload
+
   """
   Updates a single `ProviderKey` using its globally unique id and a patch.
   """
@@ -2573,22 +2593,6 @@ type Mutation {
     """
     input: UpdateProviderKeyInput!
   ): UpdateProviderKeyPayload
-
-  """Updates a single `Workspace` using its globally unique id and a patch."""
-  updateWorkspaceById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateWorkspaceByIdInput!
-  ): UpdateWorkspacePayload
-
-  """Updates a single `Workspace` using a unique key and a patch."""
-  updateWorkspace(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateWorkspaceInput!
-  ): UpdateWorkspacePayload
 
   """Updates a single `User` using its globally unique id and a patch."""
   updateUserById(
@@ -2682,22 +2686,6 @@ type Mutation {
     input: UpdateUsageEventInput!
   ): UpdateUsageEventPayload
 
-  """Deletes a single `ProviderKey` using its globally unique id."""
-  deleteProviderKeyById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteProviderKeyByIdInput!
-  ): DeleteProviderKeyPayload
-
-  """Deletes a single `ProviderKey` using a unique key."""
-  deleteProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteProviderKeyInput!
-  ): DeleteProviderKeyPayload
-
   """Deletes a single `Workspace` using its globally unique id."""
   deleteWorkspaceById(
     """
@@ -2713,6 +2701,22 @@ type Mutation {
     """
     input: DeleteWorkspaceInput!
   ): DeleteWorkspacePayload
+
+  """Deletes a single `ProviderKey` using its globally unique id."""
+  deleteProviderKeyById(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteProviderKeyByIdInput!
+  ): DeleteProviderKeyPayload
+
+  """Deletes a single `ProviderKey` using a unique key."""
+  deleteProviderKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: DeleteProviderKeyInput!
+  ): DeleteProviderKeyPayload
 
   """Deletes a single `User` using its globally unique id."""
   deleteUserById(
