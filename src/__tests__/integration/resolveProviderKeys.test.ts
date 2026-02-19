@@ -12,7 +12,7 @@ import resolveProviderKeysRoute from "lib/routes/resolveProviderKeys";
 import { providerKeyFactory, userFactory } from "test/factories";
 import { setupTestContext } from "test/setup/testContext";
 
-const GATEWAY_SECRET = "test-gateway-secret";
+const GATEWAY_SECRET = process.env.GATEWAY_SECRET ?? "test-gateway-secret";
 
 const app = new Elysia().use(resolveProviderKeysRoute);
 

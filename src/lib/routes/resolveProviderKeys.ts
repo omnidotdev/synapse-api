@@ -36,11 +36,20 @@ const resolveProviderKeysRoute = new Elysia().post(
       .from(providerKeyTable)
       .where(eq(providerKeyTable.userId, user.id));
 
-    const providerKeys = keys.map((k) => ({
-      provider: k.provider,
-      decryptedKey: decrypt(k.encryptedKey),
-      modelPreference: k.modelPreference ?? null,
-    }));
+    let providerKeys: { provider: string; decryptedKey: string; modelPreference: string | null }[];
+
+    try {
+      providerKeys = keys.map((k) => ({
+        provider: k.provider,
+        decryptedKey: decrypt(k.encryptedKey),
+        modelPreference: k.modelPreference ?? null,
+      }));
+    } catch (e) {
+      // biome-ignore lint/suspicious/noConsole: structured error logging
+      console.error("key decryption failed", e);
+      set.status = 500;
+      return { error: "key_decryption_failed" };
+    }
 
     return { providerKeys };
   },
