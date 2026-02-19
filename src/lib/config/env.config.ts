@@ -16,6 +16,8 @@ export const {
   BILLING_WEBHOOK_SECRET,
   /** Billing/entitlements service base URL */
   BILLING_BASE_URL,
+  /** Service API key for authenticating with Aether */
+  AETHER_SERVICE_API_KEY,
   /** Authorization PDP API URL */
   AUTHZ_API_URL,
   /** Enable authorization checks */

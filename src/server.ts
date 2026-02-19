@@ -26,6 +26,7 @@ import {
   provisionKeyRoute,
   reportUsageRoute,
   resolveKeyRoute,
+  usageRoute,
 } from "lib/routes";
 
 // ensure database exists before starting
@@ -97,6 +98,7 @@ const app = new Elysia({
   .use(resolveKeyRoute)
   .use(provisionKeyRoute)
   .use(reportUsageRoute)
+  .use(usageRoute)
   .use(webhooks)
   .use(
     yoga({
