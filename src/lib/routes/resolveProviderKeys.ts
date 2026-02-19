@@ -36,7 +36,11 @@ const resolveProviderKeysRoute = new Elysia().post(
       .from(providerKeyTable)
       .where(eq(providerKeyTable.userId, user.id));
 
-    let providerKeys: { provider: string; decryptedKey: string; modelPreference: string | null }[];
+    let providerKeys: {
+      provider: string;
+      decryptedKey: string;
+      modelPreference: string | null;
+    }[];
 
     try {
       providerKeys = keys.map((k) => ({
