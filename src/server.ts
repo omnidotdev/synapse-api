@@ -38,16 +38,22 @@ import {
 // ensure database exists before starting
 await ensureDatabase();
 
-// Initialize event publisher (best-effort; failures do not block startup)
-try {
-  await initPublisher({
-    host: IGGY_HOST,
-    port: Number(IGGY_PORT),
-    username: IGGY_USERNAME,
-    password: IGGY_PASSWORD,
-  });
-} catch (err) {
-  console.warn("[Events] Publisher init failed, events will be skipped:", err);
+// Initialize event publisher only when explicitly configured
+// Skipping when IGGY_HOST is unset avoids a crash from the SDK's connection pool
+// eagerly creating TCP sockets that emit unhandled 'error' events on failure
+if (process.env.IGGY_HOST) {
+  try {
+    await initPublisher({
+      host: IGGY_HOST,
+      port: Number(IGGY_PORT),
+      username: IGGY_USERNAME,
+      password: IGGY_PASSWORD,
+    });
+  } catch (err) {
+    console.warn("[Events] Publisher init failed, events will be skipped:", err);
+  }
+} else {
+  console.warn("[Events] IGGY_HOST not configured, event publishing disabled");
 }
 
 /**
