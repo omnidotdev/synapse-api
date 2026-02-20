@@ -50,7 +50,10 @@ if (process.env.IGGY_HOST) {
       password: IGGY_PASSWORD,
     });
   } catch (err) {
-    console.warn("[Events] Publisher init failed, events will be skipped:", err);
+    console.warn(
+      "[Events] Publisher init failed, events will be skipped:",
+      err,
+    );
   }
 } else {
   console.warn("[Events] IGGY_HOST not configured, event publishing disabled");

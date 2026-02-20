@@ -4,10 +4,11 @@
  * Usage: bun run scripts/seed-test-key.ts
  */
 
+import { eq } from "drizzle-orm";
+
+import { generateApiKey } from "lib/crypto";
 import { dbPool, pgPool } from "lib/db";
 import { apiKeyTable, userTable } from "lib/db/schema";
-import { generateApiKey } from "lib/crypto";
-import { eq } from "drizzle-orm";
 
 const TEST_USER_ID = "a0000000-0000-0000-0000-000000000001";
 
