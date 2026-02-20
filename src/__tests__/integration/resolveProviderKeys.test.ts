@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 
 import { encrypt } from "lib/crypto";
+import { userPreferenceTable } from "lib/db/schema";
 import resolveProviderKeysRoute from "lib/routes/resolveProviderKeys";
 import { providerKeyFactory, userFactory } from "test/factories";
 import { setupTestContext } from "test/setup/testContext";
@@ -60,6 +61,7 @@ describe("POST /internal/resolve-provider-keys", () => {
 
 		const body = await res.json();
 		expect(body.providerKeys).toEqual([]);
+		expect(body.defaultProvider).toBeNull();
 	});
 
 	test("returns decrypted provider keys for a known user", async () => {
@@ -142,5 +144,47 @@ describe("POST /internal/resolve-provider-keys", () => {
 		);
 		expect(providers).toContain("anthropic");
 		expect(providers).toContain("openai");
+	});
+
+	test("returns null defaultProvider when user has no preferences", async () => {
+		const user = await userFactory.create(ctx.db);
+		const rawKey = "sk-ant-test-no-prefs-12345";
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "anthropic",
+			encryptedKey: encrypt(rawKey),
+			keyHint: rawKey.slice(-4),
+		});
+
+		const res = await resolveProviderKeys(user.identityProviderId, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.defaultProvider).toBeNull();
+	});
+
+	test("returns defaultProvider when user has preferences set", async () => {
+		const user = await userFactory.create(ctx.db);
+		const rawKey = "sk-openai-test-with-prefs-67890";
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "openai",
+			encryptedKey: encrypt(rawKey),
+			keyHint: rawKey.slice(-4),
+		});
+
+		// Create preference directly in DB
+		await ctx.db.insert(userPreferenceTable).values({
+			userId: user.id,
+			defaultProvider: "openai",
+		});
+
+		const res = await resolveProviderKeys(user.identityProviderId, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.defaultProvider).toBe("openai");
 	});
 });

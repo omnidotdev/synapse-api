@@ -4,7 +4,11 @@ import { Elysia, t } from "elysia";
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { decrypt } from "lib/crypto";
 import { dbPool } from "lib/db";
-import { providerKeyTable, userTable } from "lib/db/schema";
+import {
+  providerKeyTable,
+  userPreferenceTable,
+  userTable,
+} from "lib/db/schema";
 
 /**
  * Internal endpoint for resolving a user's BYOK provider keys by identity provider ID.
@@ -27,14 +31,20 @@ const resolveProviderKeysRoute = new Elysia().post(
       .limit(1);
 
     if (!user) {
-      // No user in Synapse yet = no keys configured
-      return { providerKeys: [] };
+      return { providerKeys: [], defaultProvider: null };
     }
 
-    const keys = await dbPool
-      .select()
-      .from(providerKeyTable)
-      .where(eq(providerKeyTable.userId, user.id));
+    const [keys, prefsRows] = await Promise.all([
+      dbPool
+        .select()
+        .from(providerKeyTable)
+        .where(eq(providerKeyTable.userId, user.id)),
+      dbPool
+        .select({ defaultProvider: userPreferenceTable.defaultProvider })
+        .from(userPreferenceTable)
+        .where(eq(userPreferenceTable.userId, user.id))
+        .limit(1),
+    ]);
 
     let providerKeys: {
       provider: string;
@@ -54,7 +64,10 @@ const resolveProviderKeysRoute = new Elysia().post(
       return { error: "key_decryption_failed" };
     }
 
-    return { providerKeys };
+    return {
+      providerKeys,
+      defaultProvider: prefsRows[0]?.defaultProvider ?? null,
+    };
   },
   {
     body: t.Object({
