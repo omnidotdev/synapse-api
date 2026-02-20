@@ -28,6 +28,14 @@ export const {
   ENCRYPTION_KEY,
   /** Shared secret for authenticating gateway-to-API internal requests */
   GATEWAY_SECRET,
+  /** Iggy streaming host */
+  IGGY_HOST = "localhost",
+  /** Iggy streaming TCP port */
+  IGGY_PORT = "8090",
+  /** Iggy username */
+  IGGY_USERNAME = "iggy",
+  /** Iggy password */
+  IGGY_PASSWORD = "iggy",
 } = process.env;
 
 export const isDevEnv = NODE_ENV === "development",

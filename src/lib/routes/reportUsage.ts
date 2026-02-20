@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { dbPool } from "lib/db";
+import { publish } from "lib/events/publisher";
 import { usageEventTable } from "lib/db/schema";
 
 /**
@@ -22,6 +23,20 @@ const reportUsageRoute = new Elysia().post(
     }
 
     await dbPool.insert(usageEventTable).values(body.events);
+
+    // Publish usage event (best-effort, fire-and-forget)
+    const first = body.events[0];
+    void publish({
+      type: "synapse.usage.recorded",
+      source: "synapse-api",
+      organizationId: first.workspaceId ?? first.userId,
+      subject: first.userId,
+      data: {
+        count: body.events.length,
+        userId: first.userId,
+        workspaceId: first.workspaceId,
+      },
+    });
 
     return { recorded: body.events.length };
   },

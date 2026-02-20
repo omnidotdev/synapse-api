@@ -4,6 +4,7 @@ import { GraphQLError } from "graphql";
 
 import { encrypt } from "lib/crypto";
 import { providerKeyTable } from "lib/db/schema";
+import { publish } from "lib/events/publisher";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -99,6 +100,15 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
           })
           .returning();
 
+        // Publish event (best-effort, fire-and-forget)
+        void publish({
+          type: "synapse.provider_key.upserted",
+          source: "synapse-api",
+          organizationId: observer.id,
+          subject: observer.id,
+          data: { providerKeyId: providerKey.id, provider },
+        });
+
         return providerKey;
       },
 
@@ -124,6 +134,17 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             ),
           )
           .returning();
+
+        if (deleted) {
+          // Publish event (best-effort, fire-and-forget)
+          void publish({
+            type: "synapse.provider_key.deleted",
+            source: "synapse-api",
+            organizationId: observer.id,
+            subject: observer.id,
+            data: { providerKeyId: args.id },
+          });
+        }
 
         return !!deleted;
       },

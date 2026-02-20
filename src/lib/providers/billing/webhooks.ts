@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Elysia, t } from "elysia";
 
 import { BILLING_WEBHOOK_SECRET } from "lib/config/env.config";
+import { publish } from "lib/events/publisher";
 import { billing } from "lib/providers";
 
 interface BillingWebhookPayload {
@@ -91,6 +92,21 @@ const billingWebhook = new Elysia().post(
         case "entitlement.deleted":
           // Invalidate all cached entitlements for this entity
           billing.invalidateCache?.(body.entityType, body.entityId);
+
+          // Publish event (best-effort, fire-and-forget)
+          void publish({
+            type: "synapse.entitlement.changed",
+            source: "synapse-api",
+            organizationId: body.entityId,
+            subject: body.entityId,
+            data: {
+              eventType: body.eventType,
+              entityType: body.entityType,
+              entityId: body.entityId,
+              productId: body.productId,
+              featureKey: body.featureKey,
+            },
+          });
           break;
         default:
           break;

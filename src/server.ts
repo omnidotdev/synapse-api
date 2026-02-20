@@ -14,12 +14,17 @@ import webhooks from "webhooks";
 import appConfig from "lib/config/app.config";
 import {
   CORS_ALLOWED_ORIGINS,
+  IGGY_HOST,
+  IGGY_PASSWORD,
+  IGGY_PORT,
+  IGGY_USERNAME,
   PORT,
   isDevEnv,
   isProdEnv,
 } from "lib/config/env.config";
 import { dbPool, pgPool } from "lib/db";
 import ensureDatabase from "lib/db/ensureDatabase";
+import { closePublisher, initPublisher } from "lib/events/publisher";
 import createGraphqlContext from "lib/graphql/createGraphqlContext";
 import { armorPlugin, createAuthenticationPlugin } from "lib/graphql/plugins";
 import {
@@ -32,6 +37,19 @@ import {
 
 // ensure database exists before starting
 await ensureDatabase();
+
+// Initialize event publisher (best-effort; failures do not block startup)
+try {
+  await initPublisher({
+    host: IGGY_HOST,
+    port: Number(IGGY_PORT),
+    username: IGGY_USERNAME,
+    password: IGGY_PASSWORD,
+  });
+} catch (err) {
+  // biome-ignore lint/suspicious/noConsole: startup logging
+  console.warn("[Events] Publisher init failed, events will be skipped:", err);
+}
 
 /**
  * Elysia server.
@@ -147,6 +165,9 @@ const shutdown = async (signal: string) => {
 
   // Close database pool
   await pgPool.end();
+
+  // Close event publisher
+  closePublisher();
 
   // biome-ignore lint/suspicious/noConsole: shutdown logging
   console.log("[Server] Shutdown complete");

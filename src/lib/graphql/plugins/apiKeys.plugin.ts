@@ -4,6 +4,7 @@ import { GraphQLError } from "graphql";
 
 import { generateApiKey } from "lib/crypto";
 import { apiKeyTable } from "lib/db/schema";
+import { publish } from "lib/events/publisher";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -66,6 +67,15 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           })
           .returning();
 
+        // Publish event (best-effort, fire-and-forget)
+        void publish({
+          type: "synapse.api_key.created",
+          source: "synapse-api",
+          organizationId: observer.id,
+          subject: observer.id,
+          data: { apiKeyId: apiKey.id, name, mode, workspaceId: workspaceId ?? null },
+        });
+
         return {
           rawKey: raw,
           apiKeyId: apiKey.id,
@@ -100,6 +110,17 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             ),
           )
           .returning();
+
+        if (updated) {
+          // Publish event (best-effort, fire-and-forget)
+          void publish({
+            type: "synapse.api_key.revoked",
+            source: "synapse-api",
+            organizationId: observer.id,
+            subject: observer.id,
+            data: { apiKeyId: args.id },
+          });
+        }
 
         return !!updated;
       },
