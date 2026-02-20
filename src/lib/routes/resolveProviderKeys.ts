@@ -9,6 +9,7 @@ import {
   userPreferenceTable,
   userTable,
 } from "lib/db/schema";
+import { publish } from "lib/events/publisher";
 
 /**
  * Internal endpoint for resolving a user's BYOK provider keys by identity provider ID.
@@ -60,6 +61,19 @@ const resolveProviderKeysRoute = new Elysia().post(
       }));
     } catch (e) {
       console.error("key decryption failed", e);
+
+      publish({
+        type: "synapse.provider.error",
+        source: "synapse-api",
+        organizationId: body.identityProviderId,
+        subject: body.identityProviderId,
+        data: {
+          providerId: body.identityProviderId,
+          errorCode: String((e as { status?: unknown }).status ?? "key_decryption_failed"),
+          message: e instanceof Error ? e.message : String(e),
+        },
+      }).catch(() => {});
+
       set.status = 500;
       return { error: "key_decryption_failed" };
     }

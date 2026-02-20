@@ -1,9 +1,11 @@
+import { and, eq, gte, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { GATEWAY_SECRET } from "lib/config/env.config";
+import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { dbPool } from "lib/db";
+import { usageEventTable, userTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
-import { usageEventTable } from "lib/db/schema";
 
 /**
  * Internal endpoint for gateway usage reporting
@@ -26,17 +28,64 @@ const reportUsageRoute = new Elysia().post(
 
     // Publish usage event (best-effort, fire-and-forget)
     const first = body.events[0];
-    void publish({
+    const organizationId = first.workspaceId ?? first.userId;
+
+    publish({
       type: "synapse.usage.recorded",
       source: "synapse-api",
-      organizationId: first.workspaceId ?? first.userId,
+      organizationId,
       subject: first.userId,
       data: {
         count: body.events.length,
         userId: first.userId,
         workspaceId: first.workspaceId,
       },
-    });
+    }).catch(() => {});
+
+    // Check daily token usage against plan rate limits (best-effort, fire-and-forget)
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    Promise.all([
+      dbPool
+        .select({ plan: userTable.plan })
+        .from(userTable)
+        .where(eq(userTable.id, first.userId))
+        .limit(1),
+      dbPool
+        .select({
+          totalTokens: sql<number>`coalesce(sum(${usageEventTable.inputTokens} + ${usageEventTable.outputTokens}), 0)::int`,
+        })
+        .from(usageEventTable)
+        .where(
+          and(
+            eq(usageEventTable.userId, first.userId),
+            gte(usageEventTable.createdAt, startOfDay.toISOString()),
+          ),
+        ),
+    ])
+      .then(([[user], [usage]]) => {
+        const plan = (user?.plan ?? "free") as keyof typeof PLAN_RATE_LIMITS;
+        const limits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
+        const dailyTokens = usage?.totalTokens ?? 0;
+
+        if (dailyTokens >= limits.tokensPerDay * 0.8) {
+          publish({
+            type: "synapse.usage.threshold",
+            source: "synapse-api",
+            organizationId,
+            subject: first.userId,
+            data: {
+              thresholdType: "rate_limit",
+              current: dailyTokens,
+              limit: limits.tokensPerDay,
+              userId: first.userId,
+              workspaceId: first.workspaceId,
+            },
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
     return { recorded: body.events.length };
   },
