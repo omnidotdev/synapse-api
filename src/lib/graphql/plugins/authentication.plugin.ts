@@ -4,7 +4,8 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import ms from "ms";
 
 import { AUTH_BASE_URL } from "lib/config/env.config";
-import { userTable } from "lib/db/schema";
+import { encrypt } from "lib/crypto";
+import { providerKeyTable, userTable } from "lib/db/schema";
 
 import type { ResolveUserFn } from "@envelop/generic-auth";
 import type { JWTPayload } from "jose";
@@ -166,6 +167,18 @@ const resolveUser: ResolveUserFn<SelectUser, GraphQLContext> = async (ctx) => {
         },
       })
       .returning();
+
+    // Ensure every user has omni_credits provisioned by default.
+    // Uses empty sentinel — no real key needed, Synapse manages routing.
+    await ctx.db
+      .insert(providerKeyTable)
+      .values({
+        userId: user.id,
+        provider: "omni_credits",
+        encryptedKey: encrypt(""),
+        keyHint: "",
+      })
+      .onConflictDoNothing();
 
     return user;
   } catch (err) {
