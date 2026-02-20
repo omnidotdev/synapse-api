@@ -68,8 +68,8 @@ const resolveProviderKeysRoute = new Elysia().post(
         organizationId: body.identityProviderId,
         subject: body.identityProviderId,
         data: {
-          providerId: body.identityProviderId,
-          errorCode: String((e as { status?: unknown }).status ?? "key_decryption_failed"),
+          userId: body.identityProviderId,
+          errorCode: "key_decryption_failed",
           message: e instanceof Error ? e.message : String(e),
         },
       }).catch(() => {});

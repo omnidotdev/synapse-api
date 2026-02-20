@@ -168,4 +168,51 @@ describe("reportUsage - usage threshold events", () => {
 		);
 		expect(thresholdCalls.length).toBe(0);
 	});
+
+	test("does not publish synapse.usage.threshold when already above threshold before the batch", async () => {
+		mockPublish.mockClear();
+
+		// Use free plan — tokensPerDay = 50_000; 80% = 40_000
+		const user = await userFactory.create(ctx.db, { plan: "free" });
+		const { hash, hint } = generateApiKey();
+		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
+
+		// Pre-seed usage already above threshold (45_000 tokens)
+		await ctx.db.insert(usageEventTable).values({
+			userId: user.id,
+			apiKeyId: apiKey.id,
+			provider: "anthropic",
+			model: "claude-sonnet-4-20250514",
+			inputTokens: 25_000,
+			outputTokens: 20_000,
+			costCents: 0,
+			mode: "byok",
+			createdAt: new Date().toISOString(),
+		});
+
+		// Report an additional small batch — org was already above threshold
+		const events = [
+			{
+				userId: user.id,
+				apiKeyId: apiKey.id,
+				provider: "anthropic",
+				model: "claude-sonnet-4-20250514",
+				inputTokens: 100,
+				outputTokens: 100,
+				costCents: 1,
+				mode: "byok",
+			},
+		];
+
+		const res = await reportUsage(events, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		await new Promise((r) => setTimeout(r, 100));
+
+		const allCalls3 = mockPublish.mock.calls as unknown as [unknown][];
+		const thresholdCalls = allCalls3.filter(
+			(c) => (c[0] as Record<string, unknown>).type === "synapse.usage.threshold",
+		);
+		expect(thresholdCalls.length).toBe(0);
+	});
 });

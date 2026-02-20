@@ -74,7 +74,7 @@ describe("resolveProviderKeys - provider error events", () => {
 		expect(event.subject).toBe(user.identityProviderId);
 
 		const data = event.data as Record<string, unknown>;
-		expect(data.providerId).toBe(user.identityProviderId);
+		expect(data.userId).toBe(user.identityProviderId);
 		expect(typeof data.errorCode).toBe("string");
 		expect(typeof data.message).toBe("string");
 	});

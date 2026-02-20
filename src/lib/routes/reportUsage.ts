@@ -46,7 +46,13 @@ const reportUsageRoute = new Elysia().post(
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
 
-    Promise.all([
+    // Tokens contributed by this batch (used to detect threshold crossing)
+    const batchTokens = body.events.reduce(
+      (sum, e) => sum + e.inputTokens + e.outputTokens,
+      0,
+    );
+
+    const _thresholdCheck = Promise.all([
       dbPool
         .select({ plan: userTable.plan })
         .from(userTable)
@@ -69,7 +75,12 @@ const reportUsageRoute = new Elysia().post(
         const limits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
         const dailyTokens = usage?.totalTokens ?? 0;
 
-        if (dailyTokens >= limits.tokensPerDay * 0.8) {
+        // Only fire when crossing from below to at/above threshold (not on every batch)
+        const tokensBeforeThisReport = Math.max(0, dailyTokens - batchTokens);
+        const wasAlreadyAbove = tokensBeforeThisReport >= limits.tokensPerDay * 0.8;
+        const isNowAbove = dailyTokens >= limits.tokensPerDay * 0.8;
+
+        if (isNowAbove && !wasAlreadyAbove) {
           publish({
             type: "synapse.usage.threshold",
             source: "synapse-api",

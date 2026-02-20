@@ -25,8 +25,10 @@ if (!user) {
     email: "test@example.com",
     name: "Test User",
   });
+  // biome-ignore lint/suspicious/noConsole: script output
   console.log("Created test user:", TEST_USER_ID);
 } else {
+  // biome-ignore lint/suspicious/noConsole: script output
   console.log("Test user already exists:", TEST_USER_ID);
 }
 
@@ -41,11 +43,17 @@ await dbPool.insert(apiKeyTable).values({
   mode: "managed",
 });
 
+// biome-ignore lint/suspicious/noConsole: script output
 console.log("\nTest API key created:");
+// biome-ignore lint/suspicious/noConsole: script output
 console.log(`  Raw key: ${raw}`);
+// biome-ignore lint/suspicious/noConsole: script output
 console.log(`  Hint:    ...${hint}`);
+// biome-ignore lint/suspicious/noConsole: script output
 console.log(`  Mode:    managed`);
+// biome-ignore lint/suspicious/noConsole: script output
 console.log("\nUse with gateway:");
+// biome-ignore lint/suspicious/noConsole: script output
 console.log(`  curl -H "Authorization: Bearer ${raw}" ...`);
 
 await pgPool.end();

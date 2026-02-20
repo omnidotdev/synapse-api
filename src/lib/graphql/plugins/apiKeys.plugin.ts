@@ -73,7 +73,12 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           source: "synapse-api",
           organizationId: observer.id,
           subject: observer.id,
-          data: { apiKeyId: apiKey.id, name, mode, workspaceId: workspaceId ?? null },
+          data: {
+            apiKeyId: apiKey.id,
+            name,
+            mode,
+            workspaceId: workspaceId ?? null,
+          },
         });
 
         return {

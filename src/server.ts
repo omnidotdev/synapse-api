@@ -47,7 +47,6 @@ try {
     password: IGGY_PASSWORD,
   });
 } catch (err) {
-  // biome-ignore lint/suspicious/noConsole: startup logging
   console.warn("[Events] Publisher init failed, events will be skipped:", err);
 }
 
