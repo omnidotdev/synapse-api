@@ -4,14 +4,13 @@ import { useOpenTelemetry } from "@envelop/opentelemetry";
 import { useParserCache } from "@envelop/parser-cache";
 import { useValidationCache } from "@envelop/validation-cache";
 import { useDisableIntrospection } from "@graphql-yoga/plugin-disable-introspection";
+import { registerSchemas } from "@omnidotdev/providers";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
 import { schema } from "generated/graphql/schema.executable";
 import { useGrafast } from "grafast/envelop";
 import webhooks from "webhooks";
-
-import { registerSchemas } from "@omnidotdev/providers";
 
 import appConfig from "lib/config/app.config";
 import {

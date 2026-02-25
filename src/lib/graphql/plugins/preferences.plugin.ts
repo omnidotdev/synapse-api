@@ -5,7 +5,6 @@ import { GraphQLError } from "graphql";
 import { userPreferenceTable } from "lib/db/schema";
 
 import type { InsertUserPreference } from "lib/db/schema/userPreference.table";
-
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 /**
