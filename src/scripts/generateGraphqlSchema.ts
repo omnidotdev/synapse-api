@@ -11,7 +11,6 @@ import { join } from "node:path";
 import { exportSchema } from "graphile-export";
 import { printSchema } from "graphql";
 import { makeSchema } from "postgraphile";
-import { replaceInFile } from "replace-in-file";
 
 import graphilePreset from "lib/config/graphile.config";
 
@@ -75,11 +74,12 @@ const generateGraphqlSchema = async () => {
       mode: "typeDefs",
     });
 
-    await replaceInFile({
-      files: schemaFilePath,
-      from: /\/\* eslint-disable graphile-export\/export-instances, graphile-export\/export-methods, graphile-export\/exhaustive-deps \*\//g,
-      to: "// @ts-nocheck",
-    });
+    // Prepend `// @ts-nocheck` to suppress strict checking on generated code
+    const generated = readFileSync(schemaFilePath, "utf-8");
+
+    if (!generated.startsWith("// @ts-nocheck")) {
+      writeFileSync(schemaFilePath, `// @ts-nocheck\n${generated}`);
+    }
   } catch (err) {
     console.warn(
       "[graphql:generate] Schema export failed (non-fatal):",

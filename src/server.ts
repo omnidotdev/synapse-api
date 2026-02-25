@@ -11,6 +11,8 @@ import { schema } from "generated/graphql/schema.executable";
 import { useGrafast } from "grafast/envelop";
 import webhooks from "webhooks";
 
+import { registerSchemas } from "@omnidotdev/providers";
+
 import appConfig from "lib/config/app.config";
 import {
   CORS_ALLOWED_ORIGINS,
@@ -19,6 +21,8 @@ import {
   IGGY_PORT,
   IGGY_USERNAME,
   PORT,
+  VORTEX_API_KEY,
+  VORTEX_API_URL,
   isDevEnv,
   isProdEnv,
 } from "lib/config/env.config";
@@ -57,6 +61,29 @@ if (process.env.IGGY_HOST) {
   }
 } else {
   console.warn("[Events] IGGY_HOST not configured, event publishing disabled");
+}
+
+// Register event schemas with Vortex
+if (VORTEX_API_URL && VORTEX_API_KEY) {
+  registerSchemas(VORTEX_API_URL, VORTEX_API_KEY, [
+    {
+      name: "synapse.provider.error",
+      source: "omni.synapse",
+      description: "AI provider returned an error",
+    },
+    {
+      name: "synapse.provider.health_changed",
+      source: "omni.synapse",
+      description: "AI provider health status changed",
+    },
+    {
+      name: "synapse.usage.threshold",
+      source: "omni.synapse",
+      description: "Usage threshold reached for an AI provider key",
+    },
+  ]).catch((err) => {
+    console.warn("[Events] Schema registration failed:", err);
+  });
 }
 
 /**

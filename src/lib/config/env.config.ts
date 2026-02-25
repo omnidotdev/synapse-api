@@ -36,6 +36,10 @@ export const {
   IGGY_USERNAME = "iggy",
   /** Iggy password */
   IGGY_PASSWORD = "iggy",
+  /** Vortex event streaming API URL */
+  VORTEX_API_URL,
+  /** Vortex event streaming API key */
+  VORTEX_API_KEY,
 } = process.env;
 
 export const isDevEnv = NODE_ENV === "development",

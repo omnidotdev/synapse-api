@@ -4,6 +4,8 @@ import { GraphQLError } from "graphql";
 
 import { userPreferenceTable } from "lib/db/schema";
 
+import type { InsertUserPreference } from "lib/db/schema/userPreference.table";
+
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 /**
@@ -90,17 +92,13 @@ const preferencesPlugin = makeExtendSchemaPlugin({
         const { defaultProvider, notifyUsageThreshold, notifyKeyExpiry } =
           args.input;
 
-        const values: Record<string, unknown> = {
+        const values: InsertUserPreference = {
           userId: observer.id,
           updatedAt: new Date().toISOString(),
+          ...(defaultProvider !== undefined && { defaultProvider }),
+          ...(notifyUsageThreshold !== undefined && { notifyUsageThreshold }),
+          ...(notifyKeyExpiry !== undefined && { notifyKeyExpiry }),
         };
-
-        if (defaultProvider !== undefined)
-          values.defaultProvider = defaultProvider;
-        if (notifyUsageThreshold !== undefined)
-          values.notifyUsageThreshold = notifyUsageThreshold;
-        if (notifyKeyExpiry !== undefined)
-          values.notifyKeyExpiry = notifyKeyExpiry;
 
         const [prefs] = await db
           .insert(userPreferenceTable)

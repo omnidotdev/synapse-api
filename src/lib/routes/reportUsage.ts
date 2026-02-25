@@ -52,7 +52,8 @@ const reportUsageRoute = new Elysia().post(
       0,
     );
 
-    const _thresholdCheck = Promise.all([
+    // noinspection ES6MissingAwait — fire-and-forget
+    void Promise.all([
       dbPool
         .select({ plan: userTable.plan })
         .from(userTable)

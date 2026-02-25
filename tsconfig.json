@@ -16,6 +16,6 @@
     "strict": true,
     "types": ["@types/bun"]
   },
-  "exclude": ["generated"],
+  "exclude": ["src/generated"],
   "include": ["src/**/*"]
 }
