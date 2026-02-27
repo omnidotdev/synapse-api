@@ -15,8 +15,8 @@ RUN bun run src/scripts/cacheSchemaHash.ts
 FROM base AS runner
 ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 synapse && \
-    adduser --system --uid 1001 --ingroup synapse synapse
+RUN groupadd --system --gid 1001 synapse && \
+    useradd --system --uid 1001 --gid synapse synapse
 
 COPY --from=builder --chown=synapse:synapse /app/node_modules ./node_modules
 COPY --from=builder --chown=synapse:synapse /app/build ./build
