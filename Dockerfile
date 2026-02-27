@@ -15,12 +15,16 @@ RUN bun run src/scripts/cacheSchemaHash.ts
 FROM base AS runner
 ENV NODE_ENV=production
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/tsconfig.json ./
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/.cache ./.cache
+RUN addgroup --system --gid 1001 synapse && \
+    adduser --system --uid 1001 --ingroup synapse synapse
 
+COPY --from=builder --chown=synapse:synapse /app/node_modules ./node_modules
+COPY --from=builder --chown=synapse:synapse /app/build ./build
+COPY --from=builder --chown=synapse:synapse /app/package.json ./
+COPY --from=builder --chown=synapse:synapse /app/tsconfig.json ./
+COPY --from=builder --chown=synapse:synapse /app/src ./src
+COPY --from=builder --chown=synapse:synapse /app/.cache ./.cache
+
+USER synapse
 EXPOSE 4000
 CMD ["bun", "run", "start"]

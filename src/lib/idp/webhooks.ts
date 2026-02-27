@@ -7,9 +7,13 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { eq, inArray } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { AUTH_WEBHOOK_SECRET } from "lib/config/env.config";
+import { dbPool } from "lib/db";
+import { apiKeyTable } from "lib/db/schema/apiKey.table";
+import { workspaceTable } from "lib/db/schema/workspace.table";
 
 interface IDPWebhookPayload {
   eventType: "organization.deleted";
@@ -45,15 +49,35 @@ const verifySignature = (
 
 /**
  * Handle organization deletion.
- * Extend this function to clean up org-scoped resources.
+ * Clean up org-scoped resources (workspaces, API keys).
  */
 const handleOrganizationDeleted = async (
   payload: IDPWebhookPayload,
 ): Promise<void> => {
   const { organizationId, deletedAt } = payload;
 
-  // TODO: Add cleanup logic for org-scoped resources here
-  // Example: soft-delete projects, revoke API keys, etc.
+  // Find workspaces scoped to this organization
+  const workspaces = await dbPool
+    .select({ id: workspaceTable.id })
+    .from(workspaceTable)
+    .where(eq(workspaceTable.organizationId, organizationId));
+
+  const workspaceIds = workspaces.map((w) => w.id);
+
+  if (workspaceIds.length > 0) {
+    await dbPool.transaction(async (tx) => {
+      // Soft-revoke API keys scoped to those workspaces
+      await tx
+        .update(apiKeyTable)
+        .set({ revokedAt: new Date().toISOString() })
+        .where(inArray(apiKeyTable.workspaceId, workspaceIds));
+
+      // Delete the workspaces (usage events are kept for audit)
+      await tx
+        .delete(workspaceTable)
+        .where(eq(workspaceTable.organizationId, organizationId));
+    });
+  }
 
   // biome-ignore lint/suspicious/noConsole: structured logging
   console.log(
@@ -62,6 +86,7 @@ const handleOrganizationDeleted = async (
       event: "organization.deleted",
       organizationId,
       deletedAt,
+      workspacesRemoved: workspaceIds.length,
       timestamp: new Date().toISOString(),
     }),
   );
@@ -82,16 +107,15 @@ const idpWebhook = new Elysia().post(
     const eventType = headers["x-idp-event"];
 
     if (!AUTH_WEBHOOK_SECRET) {
-      console.warn(
-        "AUTH_WEBHOOK_SECRET not set - skipping signature verification",
-      );
+      set.status = 503;
+      return { error: "Webhook handler not configured" };
     }
 
     try {
       const rawBody = await request.text();
 
-      // verify signature if secret is configured
-      if (AUTH_WEBHOOK_SECRET && signature) {
+      // verify signature
+      if (signature) {
         const isValid = verifySignature(
           rawBody,
           signature,
@@ -102,7 +126,7 @@ const idpWebhook = new Elysia().post(
           set.status = 401;
           return { error: "Invalid signature" };
         }
-      } else if (AUTH_WEBHOOK_SECRET && !signature) {
+      } else {
         set.status = 401;
         return { error: "Missing signature" };
       }
