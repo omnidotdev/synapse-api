@@ -3,6 +3,7 @@ import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
 import { userPreferenceTable } from "lib/db/schema";
+import { publish } from "lib/events/publisher";
 
 import type { InsertUserPreference } from "lib/db/schema/userPreference.table";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
@@ -114,6 +115,14 @@ const preferencesPlugin = makeExtendSchemaPlugin({
             },
           })
           .returning();
+
+        void publish({
+          type: "synapse.preferences.updated",
+          source: "synapse-api",
+          organizationId: observer.id,
+          subject: observer.id,
+          data: { userId: observer.id, ...args.input },
+        });
 
         return prefs;
       },

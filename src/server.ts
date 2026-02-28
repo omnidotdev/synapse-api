@@ -80,6 +80,26 @@ if (VORTEX_API_URL && VORTEX_API_KEY) {
       source: "omni.synapse",
       description: "Usage threshold reached for an AI provider key",
     },
+    {
+      name: "synapse.workspace.created",
+      source: "omni.synapse",
+      description: "Workspace created",
+    },
+    {
+      name: "synapse.workspace.updated",
+      source: "omni.synapse",
+      description: "Workspace updated",
+    },
+    {
+      name: "synapse.workspace.deleted",
+      source: "omni.synapse",
+      description: "Workspace deleted",
+    },
+    {
+      name: "synapse.preferences.updated",
+      source: "omni.synapse",
+      description: "User preferences updated",
+    },
   ]).catch((err) => {
     console.warn("[Events] Schema registration failed:", err);
   });

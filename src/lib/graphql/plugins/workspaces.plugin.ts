@@ -3,6 +3,7 @@ import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
 import { workspaceTable } from "lib/db/schema";
+import { publish } from "lib/events/publisher";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -111,6 +112,14 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           })
           .returning();
 
+        void publish({
+          type: "synapse.workspace.created",
+          source: "synapse-api",
+          organizationId,
+          subject: workspace.id,
+          data: { workspaceId: workspace.id, name, slug, organizationId },
+        });
+
         return workspace;
       },
 
@@ -144,6 +153,14 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           .where(eq(workspaceTable.id, args.id))
           .returning();
 
+        void publish({
+          type: "synapse.workspace.updated",
+          source: "synapse-api",
+          organizationId: workspace.organizationId,
+          subject: workspace.id,
+          data: { workspaceId: workspace.id, ...args.input },
+        });
+
         return workspace;
       },
 
@@ -164,6 +181,16 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           .delete(workspaceTable)
           .where(eq(workspaceTable.id, args.id))
           .returning();
+
+        if (deleted) {
+          void publish({
+            type: "synapse.workspace.deleted",
+            source: "synapse-api",
+            organizationId: deleted.organizationId,
+            subject: args.id,
+            data: { workspaceId: args.id },
+          });
+        }
 
         return !!deleted;
       },
