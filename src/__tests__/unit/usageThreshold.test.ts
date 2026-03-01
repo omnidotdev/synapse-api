@@ -76,12 +76,12 @@ describe("reportUsage - usage threshold events", () => {
 	test("publishes synapse.usage.threshold when daily tokens reach 80% of plan limit", async () => {
 		mockPublish.mockClear();
 
-		// Use free plan — tokensPerDay = 50_000; 80% = 40_000
+		// Use free plan — tokensPerDay = 16_000; 80% = 12_800
 		const user = await userFactory.create(ctx.db, { plan: "free" });
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
 
-		// Pre-seed existing usage for today to reach the threshold
+		// Pre-seed existing usage for today just below the threshold
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
 
@@ -90,23 +90,23 @@ describe("reportUsage - usage threshold events", () => {
 			apiKeyId: apiKey.id,
 			provider: "anthropic",
 			model: "claude-sonnet-4-20250514",
-			// 39_900 tokens already used
-			inputTokens: 20_000,
-			outputTokens: 19_900,
+			// 12_600 tokens already used (just below 80% of 16_000 = 12_800)
+			inputTokens: 6_400,
+			outputTokens: 6_200,
 			costCents: 0,
 			mode: "byok",
 			createdAt: new Date().toISOString(),
 		});
 
-		// Report an additional 200 tokens to push past 40_000 (80% of 50_000)
+		// Report an additional 300 tokens to push past 12_800 (80% of 16_000)
 		const events = [
 			{
 				userId: user.id,
 				apiKeyId: apiKey.id,
 				provider: "anthropic",
 				model: "claude-sonnet-4-20250514",
-				inputTokens: 100,
-				outputTokens: 100,
+				inputTokens: 150,
+				outputTokens: 150,
 				costCents: 1,
 				mode: "byok",
 			},
@@ -143,7 +143,7 @@ describe("reportUsage - usage threshold events", () => {
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
 
-		// Only 100 tokens — well under the 40_000 threshold
+		// Only 100 tokens — well under the 12_800 threshold
 		const events = [
 			{
 				userId: user.id,
@@ -172,19 +172,19 @@ describe("reportUsage - usage threshold events", () => {
 	test("does not publish synapse.usage.threshold when already above threshold before the batch", async () => {
 		mockPublish.mockClear();
 
-		// Use free plan — tokensPerDay = 50_000; 80% = 40_000
+		// Use free plan — tokensPerDay = 16_000; 80% = 12_800
 		const user = await userFactory.create(ctx.db, { plan: "free" });
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
 
-		// Pre-seed usage already above threshold (45_000 tokens)
+		// Pre-seed usage already above threshold (14_000 tokens > 12_800)
 		await ctx.db.insert(usageEventTable).values({
 			userId: user.id,
 			apiKeyId: apiKey.id,
 			provider: "anthropic",
 			model: "claude-sonnet-4-20250514",
-			inputTokens: 25_000,
-			outputTokens: 20_000,
+			inputTokens: 7_500,
+			outputTokens: 6_500,
 			costCents: 0,
 			mode: "byok",
 			createdAt: new Date().toISOString(),
