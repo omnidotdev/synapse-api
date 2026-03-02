@@ -2156,6 +2156,23 @@ input DeleteUsageEventInput {
   rowId: UUID!
 }
 
+type Observer {
+  id: UUID!
+  name: String!
+  email: String!
+
+  """
+  List active API keys for the current user, optionally filtered by workspace.
+  """
+  apiKeys(workspaceId: UUID): [ApiKey!]!
+
+  """Fetch current user's preferences."""
+  preferences: UserPreferences
+
+  """List provider keys for the current user."""
+  providerKeys: [ProviderKey!]!
+}
+
 input GenerateApiKeyInput {
   name: String!
   mode: String!
@@ -2498,8 +2515,8 @@ type Query implements Node {
     orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
   ): UsageEventConnection
 
-  """Fetch current user's preferences."""
-  myPreferences: UserPreferences
+  """The currently authenticated user. Returns null if not authenticated."""
+  observer: Observer
 
   """Aggregated usage breakdown by model and day for charts"""
   usageBreakdown(startDate: String!, endDate: String!): UsageBreakdown
