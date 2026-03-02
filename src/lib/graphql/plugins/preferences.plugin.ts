@@ -32,27 +32,21 @@ const preferencesPlugin = makeExtendSchemaPlugin({
       updateUserPreferences(input: UpdateUserPreferencesInput!): UserPreferences
     }
 
-    extend type Query {
+    extend type Observer {
       """
       Fetch current user's preferences.
       """
-      myPreferences: UserPreferences
+      preferences: UserPreferences
     }
   `,
   resolvers: {
-    Query: {
-      async myPreferences(
-        _source: unknown,
+    Observer: {
+      async preferences(
+        observer: { id: string },
         _args: Record<string, never>,
         ctx: GraphQLContext,
       ) {
-        const { observer, db } = ctx;
-
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+        const { db } = ctx;
 
         const [prefs] = await db
           .select()

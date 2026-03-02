@@ -19,11 +19,11 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
       modelPreference: String
     }
 
-    extend type Query {
+    extend type Observer {
       """
       List provider keys for the current user.
       """
-      myProviderKeys: [ProviderKey!]!
+      providerKeys: [ProviderKey!]!
     }
 
     extend type Mutation {
@@ -39,19 +39,13 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
     }
   `,
   resolvers: {
-    Query: {
-      async myProviderKeys(
-        _source: unknown,
+    Observer: {
+      async providerKeys(
+        observer: { id: string },
         _args: Record<string, never>,
         ctx: GraphQLContext,
       ) {
-        const { observer, db } = ctx;
-
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+        const { db } = ctx;
 
         return db
           .select()

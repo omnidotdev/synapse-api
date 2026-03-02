@@ -5,6 +5,7 @@ import { PostGraphileConnectionFilterPreset } from "postgraphile-plugin-connecti
 
 import {
   apiKeysPlugin,
+  observerPlugin,
   preferencesPlugin,
   providerKeysPlugin,
   usageAggregationPlugin,
@@ -22,6 +23,7 @@ const graphilePreset: GraphileConfig.Preset = {
     PostGraphileConnectionFilterPreset,
   ],
   plugins: [
+    observerPlugin,
     apiKeysPlugin,
     preferencesPlugin,
     providerKeysPlugin,

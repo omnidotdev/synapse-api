@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
@@ -9,7 +9,7 @@ import { publish } from "lib/events/publisher";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 /**
- * API key management mutations
+ * API key management queries and mutations
  */
 const apiKeysPlugin = makeExtendSchemaPlugin({
   typeDefs: gql`
@@ -25,6 +25,13 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
       keyHint: String!
     }
 
+    extend type Observer {
+      """
+      List active API keys for the current user, optionally filtered by workspace.
+      """
+      apiKeys(workspaceId: UUID): [ApiKey!]!
+    }
+
     extend type Mutation {
       """
       Generate a new API key. The raw key is returned once and never stored.
@@ -38,6 +45,30 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
     }
   `,
   resolvers: {
+    Observer: {
+      async apiKeys(
+        observer: { id: string },
+        args: { workspaceId?: string },
+        ctx: GraphQLContext,
+      ) {
+        const { db } = ctx;
+
+        const conditions = [
+          eq(apiKeyTable.userId, observer.id),
+          isNull(apiKeyTable.revokedAt),
+        ];
+
+        if (args.workspaceId) {
+          conditions.push(eq(apiKeyTable.workspaceId, args.workspaceId));
+        }
+
+        return db
+          .select()
+          .from(apiKeyTable)
+          .where(and(...conditions))
+          .orderBy(desc(apiKeyTable.createdAt));
+      },
+    },
     Mutation: {
       async generateApiKey(
         _source: unknown,
