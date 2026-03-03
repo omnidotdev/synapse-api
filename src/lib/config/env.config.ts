@@ -40,6 +40,10 @@ export const {
   VORTEX_API_URL,
   /** Vortex event streaming API key */
   VORTEX_API_KEY,
+  /** Gatekeeper base URL for vault key proxying */
+  GATEKEEPER_URL,
+  /** Service key for authenticating with Gatekeeper */
+  GATEKEEPER_SERVICE_KEY,
 } = process.env;
 
 export const isDevEnv = NODE_ENV === "development",

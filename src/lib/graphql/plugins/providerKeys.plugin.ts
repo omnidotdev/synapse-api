@@ -5,8 +5,21 @@ import { GraphQLError } from "graphql";
 import { encrypt } from "lib/crypto";
 import { providerKeyTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import {
+  isVaultEnabled,
+  listVaultKeys,
+  providerToUUID,
+  removeVaultKey,
+  setVaultKey,
+} from "lib/vault/client";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+/**
+ * Extract the bearer token from the request Authorization header
+ */
+const extractAccessToken = (request: Request): string | undefined =>
+  request.headers.get("authorization")?.split("Bearer ")[1];
 
 /**
  * Provider key management queries and mutations
@@ -45,6 +58,25 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         _args: Record<string, never>,
         ctx: GraphQLContext,
       ) {
+        if (isVaultEnabled()) {
+          const accessToken = extractAccessToken(ctx.request);
+          if (!accessToken) return [];
+
+          const vaultKeys = await listVaultKeys(accessToken);
+
+          return vaultKeys.map((vk) => ({
+            id: providerToUUID(vk.provider),
+            userId: observer.id,
+            provider: vk.provider,
+            // Vault stores encrypted keys server-side; expose only the hint
+            encryptedKey: "",
+            keyHint: vk.key_hint ?? "",
+            modelPreference: vk.model_override ?? null,
+            createdAt: vk.created_at,
+            updatedAt: vk.updated_at,
+          }));
+        }
+
         const { db } = ctx;
 
         return db
@@ -61,7 +93,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         },
         ctx: GraphQLContext,
       ) {
-        const { observer, db } = ctx;
+        const { observer } = ctx;
 
         if (!observer) {
           throw new GraphQLError("Authentication required", {
@@ -70,6 +102,56 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         }
 
         const { provider, key, modelPreference } = args.input;
+
+        if (isVaultEnabled()) {
+          const accessToken = extractAccessToken(ctx.request);
+          if (!accessToken) {
+            throw new GraphQLError(
+              "Access token required for vault operations",
+              {
+                extensions: { code: "UNAUTHENTICATED" },
+              },
+            );
+          }
+
+          const result = await setVaultKey(accessToken, {
+            provider,
+            key,
+            modelPreference,
+          });
+
+          if (!result.success) {
+            throw new GraphQLError(
+              result.error ?? "Failed to store key in vault",
+              { extensions: { code: "VAULT_ERROR" } },
+            );
+          }
+
+          const now = new Date().toISOString();
+          const syntheticKey = {
+            id: providerToUUID(provider),
+            userId: observer.id,
+            provider,
+            encryptedKey: "",
+            keyHint: key.slice(-4),
+            modelPreference: modelPreference ?? null,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          // Publish event (best-effort, fire-and-forget)
+          void publish({
+            type: "synapse.provider_key.upserted",
+            source: "synapse-api",
+            organizationId: observer.id,
+            subject: observer.id,
+            data: { providerKeyId: syntheticKey.id, provider },
+          });
+
+          return syntheticKey;
+        }
+
+        const { db } = ctx;
         const encryptedKey = encrypt(key);
         // Last 4 characters of the raw key as a hint
         const keyHint = key.slice(-4);
@@ -111,13 +193,50 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         args: { id: string },
         ctx: GraphQLContext,
       ) {
-        const { observer, db } = ctx;
+        const { observer } = ctx;
 
         if (!observer) {
           throw new GraphQLError("Authentication required", {
             extensions: { code: "UNAUTHENTICATED" },
           });
         }
+
+        if (isVaultEnabled()) {
+          const accessToken = extractAccessToken(ctx.request);
+          if (!accessToken) {
+            throw new GraphQLError(
+              "Access token required for vault operations",
+              {
+                extensions: { code: "UNAUTHENTICATED" },
+              },
+            );
+          }
+
+          // Resolve the provider name from the deterministic UUID
+          const vaultKeys = await listVaultKeys(accessToken);
+          const target = vaultKeys.find(
+            (vk) => providerToUUID(vk.provider) === args.id,
+          );
+
+          if (!target) return false;
+
+          const deleted = await removeVaultKey(accessToken, target.provider);
+
+          if (deleted) {
+            // Publish event (best-effort, fire-and-forget)
+            void publish({
+              type: "synapse.provider_key.deleted",
+              source: "synapse-api",
+              organizationId: observer.id,
+              subject: observer.id,
+              data: { providerKeyId: args.id },
+            });
+          }
+
+          return deleted;
+        }
+
+        const { db } = ctx;
 
         const [deleted] = await db
           .delete(providerKeyTable)
