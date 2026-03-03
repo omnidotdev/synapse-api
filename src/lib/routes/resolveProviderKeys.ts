@@ -10,6 +10,7 @@ import {
   userTable,
 } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
 /**
  * Internal endpoint for resolving a user's BYOK provider keys by identity provider ID.
@@ -35,48 +36,64 @@ const resolveProviderKeysRoute = new Elysia().post(
       return { providerKeys: [], defaultProvider: null };
     }
 
-    const [keys, prefsRows] = await Promise.all([
-      dbPool
-        .select()
-        .from(providerKeyTable)
-        .where(eq(providerKeyTable.userId, user.id)),
-      dbPool
-        .select({ defaultProvider: userPreferenceTable.defaultProvider })
-        .from(userPreferenceTable)
-        .where(eq(userPreferenceTable.userId, user.id))
-        .limit(1),
-    ]);
-
     let providerKeys: {
       provider: string;
       decryptedKey: string;
       modelPreference: string | null;
     }[];
 
-    try {
-      providerKeys = keys.map((k) => ({
+    if (isVaultEnabled()) {
+      // Resolve BYOK keys from Gatekeeper vault
+      const providers = ["anthropic", "openai", "openrouter"];
+      const vaultKeys = await resolveVaultKeys(
+        body.identityProviderId,
+        providers,
+      );
+
+      providerKeys = vaultKeys.map((k) => ({
         provider: k.provider,
-        decryptedKey: decrypt(k.encryptedKey),
-        modelPreference: k.modelPreference ?? null,
+        decryptedKey: k.key,
+        modelPreference: k.model_override ?? null,
       }));
-    } catch (e) {
-      console.error("key decryption failed", e);
+    } else {
+      // Fall back to local DB decryption
+      const keys = await dbPool
+        .select()
+        .from(providerKeyTable)
+        .where(eq(providerKeyTable.userId, user.id));
 
-      publish({
-        type: "synapse.provider.error",
-        source: "synapse-api",
-        organizationId: body.identityProviderId,
-        subject: body.identityProviderId,
-        data: {
-          userId: body.identityProviderId,
-          errorCode: "key_decryption_failed",
-          message: e instanceof Error ? e.message : String(e),
-        },
-      }).catch(() => {});
+      try {
+        providerKeys = keys.map((k) => ({
+          provider: k.provider,
+          decryptedKey: decrypt(k.encryptedKey),
+          modelPreference: k.modelPreference ?? null,
+        }));
+      } catch (e) {
+        console.error("key decryption failed", e);
 
-      set.status = 500;
-      return { error: "key_decryption_failed" };
+        publish({
+          type: "synapse.provider.error",
+          source: "synapse-api",
+          organizationId: body.identityProviderId,
+          subject: body.identityProviderId,
+          data: {
+            userId: body.identityProviderId,
+            errorCode: "key_decryption_failed",
+            message: e instanceof Error ? e.message : String(e),
+          },
+        }).catch(() => {});
+
+        set.status = 500;
+        return { error: "key_decryption_failed" };
+      }
     }
+
+    // Fetch default provider preference (needed for both vault and local paths)
+    const prefsRows = await dbPool
+      .select({ defaultProvider: userPreferenceTable.defaultProvider })
+      .from(userPreferenceTable)
+      .where(eq(userPreferenceTable.userId, user.id))
+      .limit(1);
 
     return {
       providerKeys,

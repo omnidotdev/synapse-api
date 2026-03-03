@@ -91,6 +91,54 @@ export const setVaultKey = async (
   return { success: true };
 };
 
+type ResolvedVaultKey = {
+  provider: string;
+  key: string;
+  model_override: string | null;
+};
+
+/**
+ * Resolve a decrypted key from the Gatekeeper vault for a specific provider.
+ * Uses service-to-service auth (service key + X-User-Id header)
+ */
+const resolveVaultKey = async (
+  userId: string,
+  provider: string,
+): Promise<ResolvedVaultKey | null> => {
+  try {
+    const res = await fetch(`${GATEKEEPER_URL}/api/vault/resolve`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GATEKEEPER_SERVICE_KEY}`,
+        "X-User-Id": userId,
+      },
+      body: JSON.stringify({ provider }),
+    });
+
+    if (!res.ok) return null;
+
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Resolve keys for multiple providers from the Gatekeeper vault.
+ * Skips providers that return no key
+ */
+export const resolveVaultKeys = async (
+  userId: string,
+  providers: string[],
+): Promise<ResolvedVaultKey[]> => {
+  const results = await Promise.all(
+    providers.map((provider) => resolveVaultKey(userId, provider)),
+  );
+
+  return results.filter((r): r is ResolvedVaultKey => r !== null);
+};
+
 /**
  * Remove a key from the Gatekeeper vault by provider name
  */

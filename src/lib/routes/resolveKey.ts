@@ -6,6 +6,7 @@ import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { decrypt, hashApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
 import { apiKeyTable, providerKeyTable, userTable } from "lib/db/schema";
+import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
 import type { PlanTier } from "lib/config/plans.config";
 
@@ -66,15 +67,30 @@ const resolveKeyRoute = new Elysia().post(
     let providerKeys: { provider: string; decryptedKey: string }[] = [];
 
     if (apiKey.mode === "byok") {
-      const keys = await dbPool
-        .select()
-        .from(providerKeyTable)
-        .where(eq(providerKeyTable.userId, apiKey.userId));
+      if (isVaultEnabled()) {
+        // Resolve BYOK keys from Gatekeeper vault
+        const providers = ["anthropic", "openai", "openrouter"];
+        const vaultKeys = await resolveVaultKeys(
+          user.identityProviderId,
+          providers,
+        );
 
-      providerKeys = keys.map((k) => ({
-        provider: k.provider,
-        decryptedKey: decrypt(k.encryptedKey),
-      }));
+        providerKeys = vaultKeys.map((k) => ({
+          provider: k.provider,
+          decryptedKey: k.key,
+        }));
+      } else {
+        // Fall back to local DB decryption
+        const keys = await dbPool
+          .select()
+          .from(providerKeyTable)
+          .where(eq(providerKeyTable.userId, apiKey.userId));
+
+        providerKeys = keys.map((k) => ({
+          provider: k.provider,
+          decryptedKey: decrypt(k.encryptedKey),
+        }));
+      }
     }
 
     const plan = (user.plan ?? "free") as PlanTier;
