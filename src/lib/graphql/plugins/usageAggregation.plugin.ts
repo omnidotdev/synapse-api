@@ -33,16 +33,17 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
 
     extend type Query {
       """
-      Aggregated usage breakdown by model and day for charts
+      Aggregated usage breakdown by model and day for charts.
+      Optionally filter by workspaceId for workspace-scoped usage.
       """
-      usageBreakdown(startDate: String!, endDate: String!): UsageBreakdown
+      usageBreakdown(startDate: String!, endDate: String!, workspaceId: String): UsageBreakdown
     }
   `,
   resolvers: {
     Query: {
       async usageBreakdown(
         _source: unknown,
-        args: { startDate: string; endDate: string },
+        args: { startDate: string; endDate: string; workspaceId?: string },
         ctx: GraphQLContext,
       ) {
         const { observer, db } = ctx;
@@ -53,11 +54,17 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
           });
         }
 
-        const dateFilter = and(
+        const conditions = [
           eq(usageEventTable.userId, observer.id),
           gte(usageEventTable.createdAt, args.startDate),
           lte(usageEventTable.createdAt, args.endDate),
-        );
+        ];
+
+        if (args.workspaceId) {
+          conditions.push(eq(usageEventTable.workspaceId, args.workspaceId));
+        }
+
+        const dateFilter = and(...conditions);
 
         // Per-model breakdown
         const byModel = await db
