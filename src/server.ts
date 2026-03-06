@@ -8,11 +8,12 @@ import { registerSchemas } from "@omnidotdev/providers";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
-import { schema } from "generated/graphql/schema.executable";
 import { useGrafast } from "grafast/envelop";
+import { makeSchema } from "postgraphile";
 import webhooks from "webhooks";
 
 import appConfig from "lib/config/app.config";
+import graphilePreset from "lib/config/graphile.config";
 import {
   CORS_ALLOWED_ORIGINS,
   IGGY_HOST,
@@ -40,6 +41,9 @@ import {
 
 // ensure database exists before starting
 await ensureDatabase();
+
+// Build GraphQL schema from Postgraphile preset (includes custom plugins)
+const { schema } = await makeSchema(graphilePreset);
 
 // Initialize event publisher only when explicitly configured
 // Skipping when IGGY_HOST is unset avoids a crash from the SDK's connection pool
