@@ -68,6 +68,25 @@ const verifyAccessToken = async (token: string): Promise<UserInfoClaims> => {
 };
 
 /**
+ * Fetch user claims from the IDP's userinfo endpoint.
+ * This validates opaque tokens and enriches JWT claims.
+ */
+const fetchUserInfo = async (accessToken: string): Promise<UserInfoClaims> => {
+  const response = await fetch(`${AUTH_BASE_URL}/oauth2/userinfo`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new AuthenticationError(
+      "Invalid access token or request failed",
+      "USERINFO_FAILED",
+    );
+  }
+
+  return response.json();
+};
+
+/**
  * Validate token claims.
  */
 const validateClaims = (claims: UserInfoClaims): void => {
@@ -111,39 +130,17 @@ const resolveUser: ResolveUserFn<SelectUser, GraphQLContext> = async (ctx) => {
       );
     }
 
-    // TODO: remove diagnostic logging
-    const dotCount = accessToken.split(".").length - 1;
-    console.info("[Auth] token format:", {
-      length: accessToken.length,
-      dots: dotCount,
-      prefix: accessToken.slice(0, 20),
-    });
+    // JWT tokens: verify signature locally via JWKS
+    // Opaque tokens: validated implicitly by the userinfo call below
+    if (accessToken.split(".").length === 3) {
+      const verifiedPayload = await verifyAccessToken(accessToken);
+      validateClaims(verifiedPayload);
+    }
 
-    // verify JWT signature using JWKS (cryptographic verification)
-    const verifiedPayload = await verifyAccessToken(accessToken);
-
-    // fetch additional claims from userinfo (org membership, profile data)
-    // access tokens may not contain all claims, userinfo provides the full set
+    // Fetch user claims from the IDP (validates opaque tokens, enriches JWTs)
     const claims = await queryClient.ensureQueryData({
       queryKey: ["UserInfo", { accessToken }],
-      queryFn: async () => {
-        const response = await fetch(`${AUTH_BASE_URL}/oauth2/userinfo`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new AuthenticationError(
-            "Invalid access token or request failed",
-            "USERINFO_FAILED",
-          );
-        }
-
-        const userInfoClaims: UserInfoClaims = await response.json();
-
-        return userInfoClaims;
-      },
+      queryFn: () => fetchUserInfo(accessToken),
     });
 
     if (!claims) {
@@ -154,9 +151,6 @@ const resolveUser: ResolveUserFn<SelectUser, GraphQLContext> = async (ctx) => {
         "INVALID_CLAIMS",
       );
     }
-
-    // validate time-based claims from verified payload
-    validateClaims(verifiedPayload);
 
     const insertedUser: InsertUser = {
       identityProviderId: claims.sub,
