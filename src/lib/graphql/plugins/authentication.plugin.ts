@@ -111,6 +111,14 @@ const resolveUser: ResolveUserFn<SelectUser, GraphQLContext> = async (ctx) => {
       );
     }
 
+    // TODO: remove diagnostic logging
+    const dotCount = accessToken.split(".").length - 1;
+    console.info("[Auth] token format:", {
+      length: accessToken.length,
+      dots: dotCount,
+      prefix: accessToken.slice(0, 20),
+    });
+
     // verify JWT signature using JWKS (cryptographic verification)
     const verifiedPayload = await verifyAccessToken(accessToken);
 
