@@ -4,6 +4,7 @@ import { GraphQLError } from "graphql";
 
 import { userPreferenceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { events } from "lib/providers";
 
 import type { InsertUserPreference } from "lib/db/schema/userPreference.table";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
@@ -116,6 +117,12 @@ const preferencesPlugin = makeExtendSchemaPlugin({
           organizationId: observer.id,
           subject: observer.id,
           data: { userId: observer.id, ...args.input },
+        });
+        void events.emit({
+          type: "synapse.preferences.updated",
+          data: { userId: observer.id, ...args.input },
+          organizationId: observer.id,
+          subject: observer.id,
         });
 
         return prefs;

@@ -6,6 +6,7 @@ import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { dbPool } from "lib/db";
 import { usageEventTable, userTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { events } from "lib/providers";
 
 /**
  * Internal endpoint for gateway usage reporting
@@ -41,6 +42,16 @@ const reportUsageRoute = new Elysia().post(
         workspaceId: first.workspaceId,
       },
     }).catch(() => {});
+    void events.emit({
+      type: "synapse.usage.recorded",
+      data: {
+        count: body.events.length,
+        userId: first.userId,
+        workspaceId: first.workspaceId,
+      },
+      organizationId,
+      subject: first.userId,
+    });
 
     // Check daily token usage against plan rate limits (best-effort, fire-and-forget)
     const startOfDay = new Date();
@@ -96,6 +107,18 @@ const reportUsageRoute = new Elysia().post(
               workspaceId: first.workspaceId,
             },
           }).catch(() => {});
+          void events.emit({
+            type: "synapse.usage.threshold",
+            data: {
+              thresholdType: "rate_limit",
+              current: dailyTokens,
+              limit: limits.tokensPerDay,
+              userId: first.userId,
+              workspaceId: first.workspaceId,
+            },
+            organizationId,
+            subject: first.userId,
+          });
         }
       })
       .catch(() => {});

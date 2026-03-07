@@ -10,6 +10,7 @@ import {
   userTable,
 } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { events } from "lib/providers";
 import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
 /**
@@ -82,6 +83,16 @@ const resolveProviderKeysRoute = new Elysia().post(
             message: e instanceof Error ? e.message : String(e),
           },
         }).catch(() => {});
+        void events.emit({
+          type: "synapse.provider.error",
+          data: {
+            userId: body.identityProviderId,
+            errorCode: "key_decryption_failed",
+            message: e instanceof Error ? e.message : String(e),
+          },
+          organizationId: body.identityProviderId,
+          subject: body.identityProviderId,
+        });
 
         set.status = 500;
         return { error: "key_decryption_failed" };

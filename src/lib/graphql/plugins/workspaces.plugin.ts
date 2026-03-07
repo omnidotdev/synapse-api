@@ -4,6 +4,7 @@ import { GraphQLError } from "graphql";
 
 import { workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { events } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -119,6 +120,12 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           subject: workspace.id,
           data: { workspaceId: workspace.id, name, slug, organizationId },
         });
+        void events.emit({
+          type: "synapse.workspace.created",
+          data: { workspaceId: workspace.id, name, slug, organizationId },
+          organizationId,
+          subject: workspace.id,
+        });
 
         return workspace;
       },
@@ -160,6 +167,12 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           subject: workspace.id,
           data: { workspaceId: workspace.id, ...args.input },
         });
+        void events.emit({
+          type: "synapse.workspace.updated",
+          data: { workspaceId: workspace.id, ...args.input },
+          organizationId: workspace.organizationId,
+          subject: workspace.id,
+        });
 
         return workspace;
       },
@@ -189,6 +202,12 @@ const workspacesPlugin = makeExtendSchemaPlugin({
             organizationId: deleted.organizationId,
             subject: args.id,
             data: { workspaceId: args.id },
+          });
+          void events.emit({
+            type: "synapse.workspace.deleted",
+            data: { workspaceId: args.id },
+            organizationId: deleted.organizationId,
+            subject: args.id,
           });
         }
 

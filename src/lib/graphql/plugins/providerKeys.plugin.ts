@@ -5,6 +5,7 @@ import { GraphQLError } from "graphql";
 import { encrypt } from "lib/crypto";
 import { providerKeyTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { events } from "lib/providers";
 import {
   isVaultEnabled,
   listVaultKeys,
@@ -147,6 +148,12 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             subject: observer.id,
             data: { providerKeyId: syntheticKey.id, provider },
           });
+          void events.emit({
+            type: "synapse.provider_key.upserted",
+            data: { providerKeyId: syntheticKey.id, provider },
+            organizationId: observer.id,
+            subject: observer.id,
+          });
 
           return syntheticKey;
         }
@@ -183,6 +190,12 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
           organizationId: observer.id,
           subject: observer.id,
           data: { providerKeyId: providerKey.id, provider },
+        });
+        void events.emit({
+          type: "synapse.provider_key.upserted",
+          data: { providerKeyId: providerKey.id, provider },
+          organizationId: observer.id,
+          subject: observer.id,
         });
 
         return providerKey;
@@ -231,6 +244,12 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
               subject: observer.id,
               data: { providerKeyId: args.id },
             });
+            void events.emit({
+              type: "synapse.provider_key.deleted",
+              data: { providerKeyId: args.id },
+              organizationId: observer.id,
+              subject: observer.id,
+            });
           }
 
           return deleted;
@@ -256,6 +275,12 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             organizationId: observer.id,
             subject: observer.id,
             data: { providerKeyId: args.id },
+          });
+          void events.emit({
+            type: "synapse.provider_key.deleted",
+            data: { providerKeyId: args.id },
+            organizationId: observer.id,
+            subject: observer.id,
           });
         }
 
