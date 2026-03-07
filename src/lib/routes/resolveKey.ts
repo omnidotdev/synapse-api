@@ -97,7 +97,7 @@ const resolveKeyRoute = new Elysia().post(
     const rateLimits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
 
     return {
-      userId: user.id,
+      userId: user.identityProviderId,
       workspaceId: apiKey.workspaceId,
       apiKeyId: apiKey.id,
       mode: apiKey.mode,

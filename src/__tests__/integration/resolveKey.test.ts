@@ -73,7 +73,7 @@ describe("POST /internal/resolve-key", () => {
 		expect(res.status).toBe(200);
 
 		const body = await res.json();
-		expect(body.userId).toBe(user.id);
+		expect(body.userId).toBe(user.identityProviderId);
 		expect(body.workspaceId).toBe(apiKey.workspaceId);
 		expect(body.apiKeyId).toBe(apiKey.id);
 		expect(body.mode).toBe("byok");
