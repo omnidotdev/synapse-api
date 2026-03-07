@@ -31,8 +31,6 @@ const knipConfig: KnipConfig = {
   ],
   ignoreDependencies: [
     "@changesets/cli",
-    // local/git-hosted package; knip cannot trace its exports
-    "@omnidotdev/providers",
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
