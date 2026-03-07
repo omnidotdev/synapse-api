@@ -59,8 +59,10 @@ const billingWebhook = new Elysia().post(
 
     if (!BILLING_WEBHOOK_SECRET) {
       console.warn(
-        "BILLING_WEBHOOK_SECRET not set - skipping signature verification",
+        "BILLING_WEBHOOK_SECRET not set - rejecting unverifiable webhook",
       );
+      set.status = 403;
+      return { error: "Webhook secret not configured" };
     }
 
     try {
