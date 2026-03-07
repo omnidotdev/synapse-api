@@ -67,16 +67,18 @@ const organizationMiddleware = new Elysia({
   }
 
   // Check organization-level authorization via authz provider
-  const canAccess = await authz.checkPermission(
-    session.user.id,
-    "organization",
-    orgClaim.id,
-    "viewer",
-  );
+  if (authz) {
+    const canAccess = await authz.checkPermission(
+      session.user.id,
+      "organization",
+      orgClaim.id,
+      "viewer",
+    );
 
-  if (!canAccess) {
-    set.status = 403;
-    throw new Error("Access denied to organization");
+    if (!canAccess) {
+      set.status = 403;
+      throw new Error("Access denied to organization");
+    }
   }
 
   // Return context for downstream handlers

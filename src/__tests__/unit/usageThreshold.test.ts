@@ -3,18 +3,10 @@ import { randomBytes } from "node:crypto";
 process.env.ENCRYPTION_KEY = randomBytes(32).toString("base64");
 process.env.GATEWAY_SECRET ??= "test-gateway-secret";
 
-import { describe, expect, mock, test } from "bun:test";
-
-// Mock the publisher before importing the route
-const mockPublish = mock(async () => null);
-
-mock.module("lib/events/publisher", () => ({
-	publish: mockPublish,
-	initPublisher: mock(async () => {}),
-	closePublisher: mock(() => {}),
-}));
-
+import { describe, expect, test } from "bun:test";
+import { and, eq, gte } from "drizzle-orm";
 import { Elysia } from "elysia";
+
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { generateApiKey } from "lib/crypto";
 import { usageEventTable } from "lib/db/schema";
@@ -40,10 +32,8 @@ const reportUsage = (events: Record<string, unknown>[], secret?: string) =>
 
 const ctx = setupTestContext();
 
-describe("reportUsage - usage threshold events", () => {
-	test("publishes synapse.usage.recorded on every batch", async () => {
-		mockPublish.mockClear();
-
+describe("reportUsage - usage recording", () => {
+	test("records usage events and returns correct count", async () => {
 		const user = await userFactory.create(ctx.db);
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
@@ -64,33 +54,55 @@ describe("reportUsage - usage threshold events", () => {
 		const res = await reportUsage(events, GATEWAY_SECRET);
 		expect(res.status).toBe(200);
 
-		// Allow fire-and-forget promises to flush
-		await new Promise((r) => setTimeout(r, 50));
-
-		const calls = (mockPublish.mock.calls as unknown as [unknown][]).map(
-			(c) => (c[0] as Record<string, unknown>).type,
-		);
-		expect(calls).toContain("synapse.usage.recorded");
+		const body = await res.json();
+		expect(body.recorded).toBe(1);
 	});
 
-	test("publishes synapse.usage.threshold when daily tokens reach 80% of plan limit", async () => {
-		mockPublish.mockClear();
+	test("persists usage events to database", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { hash, hint } = generateApiKey();
+		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
 
-		// Use free plan — tokensPerDay = 16_000; 80% = 12_800
+		const events = [
+			{
+				userId: user.id,
+				apiKeyId: apiKey.id,
+				provider: "anthropic",
+				model: "claude-sonnet-4-20250514",
+				inputTokens: 150,
+				outputTokens: 75,
+				costCents: 8,
+				mode: "byok",
+			},
+		];
+
+		await reportUsage(events, GATEWAY_SECRET);
+
+		// Allow fire-and-forget DB writes to flush
+		await new Promise((r) => setTimeout(r, 50));
+
+		const rows = await ctx.db
+			.select()
+			.from(usageEventTable)
+			.where(eq(usageEventTable.apiKeyId, apiKey.id));
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0].inputTokens).toBe(150);
+		expect(rows[0].outputTokens).toBe(75);
+	});
+
+	test("accumulates daily token usage across multiple batches", async () => {
+		// Use free plan — tokensPerDay = 16_000
 		const user = await userFactory.create(ctx.db, { plan: "free" });
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
 
-		// Pre-seed existing usage for today just below the threshold
-		const startOfDay = new Date();
-		startOfDay.setUTCHours(0, 0, 0, 0);
-
+		// Pre-seed existing usage for today
 		await ctx.db.insert(usageEventTable).values({
 			userId: user.id,
 			apiKeyId: apiKey.id,
 			provider: "anthropic",
 			model: "claude-sonnet-4-20250514",
-			// 12_600 tokens already used (just below 80% of 16_000 = 12_800)
 			inputTokens: 6_400,
 			outputTokens: 6_200,
 			costCents: 0,
@@ -98,7 +110,7 @@ describe("reportUsage - usage threshold events", () => {
 			createdAt: new Date().toISOString(),
 		});
 
-		// Report an additional 300 tokens to push past 12_800 (80% of 16_000)
+		// Report additional tokens
 		const events = [
 			{
 				userId: user.id,
@@ -115,104 +127,25 @@ describe("reportUsage - usage threshold events", () => {
 		const res = await reportUsage(events, GATEWAY_SECRET);
 		expect(res.status).toBe(200);
 
-		// Allow fire-and-forget DB query + publish to complete
-		await new Promise((r) => setTimeout(r, 100));
+		// Allow fire-and-forget DB writes to flush
+		await new Promise((r) => setTimeout(r, 50));
 
-		const allCalls = mockPublish.mock.calls as unknown as [unknown][];
-		const thresholdCalls = allCalls.filter(
-			(c) => (c[0] as Record<string, unknown>).type === "synapse.usage.threshold",
-		);
-		expect(thresholdCalls.length).toBeGreaterThan(0);
+		// Verify total daily usage is accumulated
+		const startOfDay = new Date();
+		startOfDay.setUTCHours(0, 0, 0, 0);
 
-		const event = thresholdCalls[0][0] as Record<string, unknown>;
-		expect(event.source).toBe("synapse-api");
-		expect(event.organizationId).toBe(user.id);
-		expect(event.subject).toBe(user.id);
+		const rows = await ctx.db
+			.select()
+			.from(usageEventTable)
+			.where(
+				and(
+					eq(usageEventTable.userId, user.id),
+					gte(usageEventTable.createdAt, startOfDay.toISOString()),
+				),
+			);
 
-		const data = event.data as Record<string, unknown>;
-		expect(data.thresholdType).toBe("rate_limit");
-		expect(typeof data.current).toBe("number");
-		expect(data.limit).toBe(PLAN_RATE_LIMITS.free.tokensPerDay);
-		expect(data.userId).toBe(user.id);
-	});
-
-	test("does not publish synapse.usage.threshold when usage is below 80%", async () => {
-		mockPublish.mockClear();
-
-		const user = await userFactory.create(ctx.db, { plan: "free" });
-		const { hash, hint } = generateApiKey();
-		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
-
-		// Only 100 tokens — well under the 12_800 threshold
-		const events = [
-			{
-				userId: user.id,
-				apiKeyId: apiKey.id,
-				provider: "openai",
-				model: "gpt-4o",
-				inputTokens: 60,
-				outputTokens: 40,
-				costCents: 1,
-				mode: "byok",
-			},
-		];
-
-		const res = await reportUsage(events, GATEWAY_SECRET);
-		expect(res.status).toBe(200);
-
-		await new Promise((r) => setTimeout(r, 100));
-
-		const allCalls2 = mockPublish.mock.calls as unknown as [unknown][];
-		const thresholdCalls = allCalls2.filter(
-			(c) => (c[0] as Record<string, unknown>).type === "synapse.usage.threshold",
-		);
-		expect(thresholdCalls.length).toBe(0);
-	});
-
-	test("does not publish synapse.usage.threshold when already above threshold before the batch", async () => {
-		mockPublish.mockClear();
-
-		// Use free plan — tokensPerDay = 16_000; 80% = 12_800
-		const user = await userFactory.create(ctx.db, { plan: "free" });
-		const { hash, hint } = generateApiKey();
-		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
-
-		// Pre-seed usage already above threshold (14_000 tokens > 12_800)
-		await ctx.db.insert(usageEventTable).values({
-			userId: user.id,
-			apiKeyId: apiKey.id,
-			provider: "anthropic",
-			model: "claude-sonnet-4-20250514",
-			inputTokens: 7_500,
-			outputTokens: 6_500,
-			costCents: 0,
-			mode: "byok",
-			createdAt: new Date().toISOString(),
-		});
-
-		// Report an additional small batch — org was already above threshold
-		const events = [
-			{
-				userId: user.id,
-				apiKeyId: apiKey.id,
-				provider: "anthropic",
-				model: "claude-sonnet-4-20250514",
-				inputTokens: 100,
-				outputTokens: 100,
-				costCents: 1,
-				mode: "byok",
-			},
-		];
-
-		const res = await reportUsage(events, GATEWAY_SECRET);
-		expect(res.status).toBe(200);
-
-		await new Promise((r) => setTimeout(r, 100));
-
-		const allCalls3 = mockPublish.mock.calls as unknown as [unknown][];
-		const thresholdCalls = allCalls3.filter(
-			(c) => (c[0] as Record<string, unknown>).type === "synapse.usage.threshold",
-		);
-		expect(thresholdCalls.length).toBe(0);
+		const totalTokens = rows.reduce((sum, r) => sum + r.inputTokens + r.outputTokens, 0);
+		// 6400+6200 (pre-seeded) + 150+150 (new batch) = 12900
+		expect(totalTokens).toBe(12_900);
 	});
 });

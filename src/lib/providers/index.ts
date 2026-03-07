@@ -18,9 +18,9 @@ import {
   VORTEX_API_URL,
 } from "lib/config/env.config";
 
-export const authz = createAuthzProvider({
-  apiUrl: AUTHZ_API_URL,
-});
+export const authz = AUTHZ_API_URL
+  ? createAuthzProvider({ apiUrl: AUTHZ_API_URL })
+  : null;
 
 export const billing = createBillingProvider({
   baseUrl: BILLING_BASE_URL,

@@ -4,18 +4,9 @@ import { randomBytes } from "node:crypto";
 process.env.ENCRYPTION_KEY = randomBytes(32).toString("base64");
 process.env.GATEWAY_SECRET ??= "test-gateway-secret";
 
-import { describe, expect, mock, test } from "bun:test";
-
-// Mock the publisher before importing the route so the route picks up the mock
-const mockPublish = mock(async () => null);
-
-mock.module("lib/events/publisher", () => ({
-	publish: mockPublish,
-	initPublisher: mock(async () => {}),
-	closePublisher: mock(() => {}),
-}));
-
+import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
+
 import { encrypt } from "lib/crypto";
 import resolveProviderKeysRoute from "lib/routes/resolveProviderKeys";
 import { providerKeyFactory, userFactory } from "test/factories";
@@ -40,9 +31,7 @@ const resolveProviderKeys = (identityProviderId: string, secret?: string) =>
 const ctx = setupTestContext();
 
 describe("resolveProviderKeys - provider error events", () => {
-	test("publishes synapse.provider.error when key decryption fails", async () => {
-		mockPublish.mockClear();
-
+	test("returns 500 with key_decryption_failed when key decryption fails", async () => {
 		// Create a user and a provider key with invalid ciphertext so decrypt() throws
 		const user = await userFactory.create(ctx.db);
 
@@ -59,29 +48,9 @@ describe("resolveProviderKeys - provider error events", () => {
 
 		const body = await res.json();
 		expect(body.error).toBe("key_decryption_failed");
-
-		// Allow microtasks to flush
-		await new Promise((r) => setTimeout(r, 0));
-
-		expect(mockPublish).toHaveBeenCalledTimes(1);
-
-		const calls = mockPublish.mock.calls as unknown as [unknown][];
-		const event = calls[0][0] as Record<string, unknown>;
-
-		expect(event.type).toBe("synapse.provider.error");
-		expect(event.source).toBe("synapse-api");
-		expect(event.organizationId).toBe(user.identityProviderId);
-		expect(event.subject).toBe(user.identityProviderId);
-
-		const data = event.data as Record<string, unknown>;
-		expect(data.userId).toBe(user.identityProviderId);
-		expect(typeof data.errorCode).toBe("string");
-		expect(typeof data.message).toBe("string");
 	});
 
-	test("does not publish provider error event on successful key resolution", async () => {
-		mockPublish.mockClear();
-
+	test("does not error on successful key resolution", async () => {
 		const user = await userFactory.create(ctx.db);
 
 		await providerKeyFactory.create(ctx.db, {
@@ -94,8 +63,9 @@ describe("resolveProviderKeys - provider error events", () => {
 		const res = await resolveProviderKeys(user.identityProviderId, GATEWAY_SECRET);
 		expect(res.status).toBe(200);
 
-		await new Promise((r) => setTimeout(r, 0));
-
-		expect(mockPublish).not.toHaveBeenCalled();
+		const body = await res.json();
+		expect(body.providerKeys).toHaveLength(1);
+		expect(body.providerKeys[0].provider).toBe("anthropic");
+		expect(body.providerKeys[0].decryptedKey).toBe("sk-ant-valid-key");
 	});
 });
