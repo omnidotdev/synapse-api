@@ -70,6 +70,8 @@ const resolveUser: ResolveUserFn<SelectUser, GraphQLContext> = async (ctx) => {
 
     const insertedUser: InsertUser = {
       identityProviderId: claims.sub,
+      email: claims.email ?? "",
+      name: claims.name ?? "",
     };
 
     const { identityProviderId, ...rest } = insertedUser;
