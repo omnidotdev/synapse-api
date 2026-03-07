@@ -2518,8 +2518,11 @@ type Query implements Node {
   """The currently authenticated user. Returns null if not authenticated."""
   observer: Observer
 
-  """Aggregated usage breakdown by model and day for charts"""
-  usageBreakdown(startDate: String!, endDate: String!): UsageBreakdown
+  """
+  Aggregated usage breakdown by model and day for charts.
+  Optionally filter by workspaceId for workspace-scoped usage.
+  """
+  usageBreakdown(startDate: String!, endDate: String!, workspaceId: String): UsageBreakdown
 
   """List workspaces for an organization"""
   orgWorkspaces(organizationId: UUID!): [WorkspaceResult!]!
