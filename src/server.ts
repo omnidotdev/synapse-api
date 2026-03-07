@@ -4,7 +4,7 @@ import { useOpenTelemetry } from "@envelop/opentelemetry";
 import { useParserCache } from "@envelop/parser-cache";
 import { useValidationCache } from "@envelop/validation-cache";
 import { useDisableIntrospection } from "@graphql-yoga/plugin-disable-introspection";
-import { registerSchemas } from "@omnidotdev/providers";
+import { SECURITY_HEADERS, registerSchemas } from "@omnidotdev/providers";
 import { sql } from "drizzle-orm";
 import { Elysia } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
@@ -13,7 +13,6 @@ import { makeSchema } from "postgraphile";
 import webhooks from "webhooks";
 
 import appConfig from "lib/config/app.config";
-import graphilePreset from "lib/config/graphile.config";
 import {
   CORS_ALLOWED_ORIGINS,
   IGGY_HOST,
@@ -26,6 +25,7 @@ import {
   isDevEnv,
   isProdEnv,
 } from "lib/config/env.config";
+import graphilePreset from "lib/config/graphile.config";
 import { dbPool, pgPool } from "lib/db";
 import ensureDatabase from "lib/db/ensureDatabase";
 import { closePublisher, initPublisher } from "lib/events/publisher";
@@ -127,10 +127,7 @@ const app = new Elysia({
 })
   // security headers
   .onAfterHandle(({ set }) => {
-    set.headers["X-Content-Type-Options"] = "nosniff";
-    set.headers["X-Frame-Options"] = "DENY";
-    set.headers["X-XSS-Protection"] = "1; mode=block";
-    set.headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    Object.assign(set.headers, SECURITY_HEADERS);
   })
   .use(
     cors({
