@@ -25,11 +25,22 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
       keyHint: String!
     }
 
+    type ApiKeyInfo {
+      id: UUID!
+      name: String!
+      keyHint: String!
+      mode: String!
+      createdAt: Datetime!
+      lastUsedAt: Datetime
+      expiresAt: Datetime
+      revokedAt: Datetime
+    }
+
     extend type Observer {
       """
       List active API keys for the current user, optionally filtered by workspace.
       """
-      apiKeys(workspaceId: UUID): [ApiKey!]!
+      apiKeys(workspaceId: UUID): [ApiKeyInfo!]!
     }
 
     extend type Mutation {
