@@ -7,7 +7,6 @@ import { describe, expect, test } from "bun:test";
 import { and, eq, gte } from "drizzle-orm";
 import { Elysia } from "elysia";
 
-import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { generateApiKey } from "lib/crypto";
 import { usageEventTable } from "lib/db/schema";
 import reportUsageRoute from "lib/routes/reportUsage";

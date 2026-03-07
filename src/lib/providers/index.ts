@@ -22,10 +22,15 @@ export const authz = AUTHZ_API_URL
   ? createAuthzProvider({ apiUrl: AUTHZ_API_URL })
   : null;
 
-export const billing = createBillingProvider({
-  baseUrl: BILLING_BASE_URL,
-  appId: "synapse",
-});
+export const billing = createBillingProvider(
+  BILLING_BASE_URL
+    ? {
+        provider: "aether",
+        baseUrl: BILLING_BASE_URL,
+        appId: "synapse",
+      }
+    : {},
+);
 
 export const events = createEventsProvider(
   VORTEX_API_URL && VORTEX_API_KEY
