@@ -8,7 +8,7 @@ import { apiKeyTable, userTable } from "lib/db/schema";
 
 import type { PlanTier } from "lib/config/plans.config";
 
-const MANAGED_KEY_NAME = "Beacon (auto)";
+const DEFAULT_KEY_SOURCE = "Managed";
 
 /**
  * Internal endpoint for auto-provisioning a managed API key
@@ -47,6 +47,8 @@ const provisionKeyRoute = new Elysia().post(
       })
       .returning();
 
+    const keyName = `${body.source || DEFAULT_KEY_SOURCE} (auto)`;
+
     // Generate a fresh API key
     const { raw, hash, hint } = generateApiKey();
 
@@ -58,7 +60,7 @@ const provisionKeyRoute = new Elysia().post(
         and(
           eq(apiKeyTable.userId, user.id),
           eq(apiKeyTable.mode, "managed"),
-          eq(apiKeyTable.name, MANAGED_KEY_NAME),
+          eq(apiKeyTable.name, keyName),
           isNull(apiKeyTable.revokedAt),
         ),
       )
@@ -78,7 +80,7 @@ const provisionKeyRoute = new Elysia().post(
         userId: user.id,
         keyHash: hash,
         keyHint: hint,
-        name: MANAGED_KEY_NAME,
+        name: keyName,
         mode: "managed",
       });
     }
@@ -97,6 +99,7 @@ const provisionKeyRoute = new Elysia().post(
       identityProviderId: t.String(),
       email: t.Optional(t.String()),
       name: t.Optional(t.String()),
+      source: t.Optional(t.String()),
     }),
   },
 );
