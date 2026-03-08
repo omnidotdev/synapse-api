@@ -1,4 +1,4 @@
-type PlanTier = "free" | "pro" | "team" | "enterprise";
+type PlanTier = "free" | "pro" | "team" | "business" | "enterprise";
 
 type PlanRateLimits = {
   requestsPerMinute: number;
@@ -21,6 +21,11 @@ const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
     requestsPerMinute: 500,
     tokensPerDay: 1_000_000,
     tokensPerMonth: 30_000_000,
+  },
+  business: {
+    requestsPerMinute: 1_000,
+    tokensPerDay: -1,
+    tokensPerMonth: -1,
   },
   enterprise: {
     requestsPerMinute: 2_000,
