@@ -127,10 +127,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
 
         const { organizationId, name, slug, description } = args.input;
 
-        await assertOrgMembership(
-          observer.identityProviderId,
-          organizationId,
-        );
+        await assertOrgMembership(observer.identityProviderId, organizationId);
 
         const [workspace] = await db
           .insert(workspaceTable)
