@@ -4,9 +4,28 @@ import { GraphQLError } from "graphql";
 
 import { workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { validateOrgMembership } from "lib/idp";
 import { events } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+/**
+ * Assert the observer is a member of the given organization.
+ * @param observerIdpId - The observer's identity provider ID
+ * @param organizationId - The organization to check membership against
+ */
+const assertOrgMembership = async (
+  observerIdpId: string,
+  organizationId: string,
+) => {
+  const isMember = await validateOrgMembership(observerIdpId, organizationId);
+
+  if (!isMember) {
+    throw new GraphQLError("Not a member of this organization", {
+      extensions: { code: "FORBIDDEN" },
+    });
+  }
+};
 
 /**
  * Workspace CRUD mutations
@@ -74,6 +93,11 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           });
         }
 
+        await assertOrgMembership(
+          observer.identityProviderId,
+          args.organizationId,
+        );
+
         return db
           .select()
           .from(workspaceTable)
@@ -102,6 +126,11 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         }
 
         const { organizationId, name, slug, description } = args.input;
+
+        await assertOrgMembership(
+          observer.identityProviderId,
+          organizationId,
+        );
 
         const [workspace] = await db
           .insert(workspaceTable)
@@ -146,6 +175,23 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           });
         }
 
+        // Look up workspace to verify it exists and get its organizationId
+        const [existing] = await db
+          .select({ organizationId: workspaceTable.organizationId })
+          .from(workspaceTable)
+          .where(eq(workspaceTable.id, args.id));
+
+        if (!existing) {
+          throw new GraphQLError("Workspace not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
+        await assertOrgMembership(
+          observer.identityProviderId,
+          existing.organizationId,
+        );
+
         const set: Record<string, unknown> = {
           updatedAt: new Date().toISOString(),
         };
@@ -159,6 +205,12 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           .set(set)
           .where(eq(workspaceTable.id, args.id))
           .returning();
+
+        if (!workspace) {
+          throw new GraphQLError("Workspace not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
 
         void publish({
           type: "synapse.workspace.updated",
@@ -189,6 +241,23 @@ const workspacesPlugin = makeExtendSchemaPlugin({
             extensions: { code: "UNAUTHENTICATED" },
           });
         }
+
+        // Look up workspace to verify it exists and get its organizationId
+        const [existing] = await db
+          .select({ organizationId: workspaceTable.organizationId })
+          .from(workspaceTable)
+          .where(eq(workspaceTable.id, args.id));
+
+        if (!existing) {
+          throw new GraphQLError("Workspace not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
+        await assertOrgMembership(
+          observer.identityProviderId,
+          existing.organizationId,
+        );
 
         const [deleted] = await db
           .delete(workspaceTable)
