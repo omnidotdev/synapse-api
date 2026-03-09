@@ -30,7 +30,7 @@ const knipConfig: KnipConfig = {
     "src/lib/providers/**",
   ],
   ignoreDependencies: [
-// TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
+    // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
   ],
