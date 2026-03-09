@@ -196,7 +196,7 @@ const app = new Elysia({
       ],
     }),
   )
-  .listen(PORT);
+  .listen({ port: Number(PORT), hostname: "::" });
 
 // biome-ignore lint/suspicious/noConsole: root logging
 console.log(
