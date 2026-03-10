@@ -33,18 +33,29 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
       modelPreference: String
     }
 
+    type ProviderKeyInfo {
+      id: UUID!
+      userId: UUID!
+      provider: String!
+      encryptedKey: String!
+      keyHint: String!
+      createdAt: Datetime
+      updatedAt: Datetime
+      modelPreference: String
+    }
+
     extend type Observer {
       """
       List provider keys for the current user.
       """
-      providerKeys: [ProviderKey!]!
+      providerKeys: [ProviderKeyInfo!]!
     }
 
     extend type Mutation {
       """
       Encrypt and upsert a BYOK provider key.
       """
-      setProviderKey(input: SetProviderKeyInput!): ProviderKey
+      setProviderKey(input: SetProviderKeyInput!): ProviderKeyInfo
 
       """
       Delete a provider key. Verifies ownership before deletion.
