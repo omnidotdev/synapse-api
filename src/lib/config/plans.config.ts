@@ -8,8 +8,8 @@ type PlanRateLimits = {
 
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
-    requestsPerMinute: 20,
-    tokensPerDay: 16_000,
+    requestsPerMinute: 60,
+    tokensPerDay: -1,
     tokensPerMonth: 500_000,
   },
   pro: {

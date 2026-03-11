@@ -14,14 +14,11 @@ const knipConfig: KnipConfig = {
     "src/lib/config/drizzle.config.ts",
     "src/lib/config/plans.config.ts",
     "src/scripts/**",
-    "src/lib/db/db.ts",
     "src/lib/config/env.config.ts",
     "src/test/**",
-    "src/__tests__/**",
     // Reference patterns - unused in template but available for adoption
     "src/lib/cache/**",
     "src/lib/db/scoped.ts",
-    "src/lib/db/createDbClient.ts",
     "src/lib/db/dbClient.ts",
     "src/lib/db/pgClient.ts",
     "src/lib/idp/**",
@@ -34,7 +31,7 @@ const knipConfig: KnipConfig = {
     "@testcontainers/postgresql",
     "testcontainers",
   ],
-  ignoreBinaries: [],
+  ignoreBinaries: ["tsc"],
   tags: ["-knipignore"],
 };
 

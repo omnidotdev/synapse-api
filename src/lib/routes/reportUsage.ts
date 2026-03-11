@@ -88,10 +88,13 @@ const reportUsageRoute = new Elysia().post(
         const dailyTokens = usage?.totalTokens ?? 0;
 
         // Only fire when crossing from below to at/above threshold (not on every batch)
+        // Skip threshold check for unlimited plans (tokensPerDay === -1)
         const tokensBeforeThisReport = Math.max(0, dailyTokens - batchTokens);
+        const hasLimit = limits.tokensPerDay > 0;
         const wasAlreadyAbove =
-          tokensBeforeThisReport >= limits.tokensPerDay * 0.8;
-        const isNowAbove = dailyTokens >= limits.tokensPerDay * 0.8;
+          hasLimit && tokensBeforeThisReport >= limits.tokensPerDay * 0.8;
+        const isNowAbove =
+          hasLimit && dailyTokens >= limits.tokensPerDay * 0.8;
 
         if (isNowAbove && !wasAlreadyAbove) {
           publish({
