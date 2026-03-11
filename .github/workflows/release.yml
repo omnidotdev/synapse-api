@@ -55,3 +55,8 @@ jobs:
           oras push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-graphql:latest \
             --artifact-type application/vnd.omni.graphql \
             src/generated/graphql/schema.graphql:application/graphql
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Knip
+        run: bun knip
