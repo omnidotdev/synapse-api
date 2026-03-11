@@ -93,8 +93,7 @@ const reportUsageRoute = new Elysia().post(
         const hasLimit = limits.tokensPerDay > 0;
         const wasAlreadyAbove =
           hasLimit && tokensBeforeThisReport >= limits.tokensPerDay * 0.8;
-        const isNowAbove =
-          hasLimit && dailyTokens >= limits.tokensPerDay * 0.8;
+        const isNowAbove = hasLimit && dailyTokens >= limits.tokensPerDay * 0.8;
 
         if (isNowAbove && !wasAlreadyAbove) {
           publish({
