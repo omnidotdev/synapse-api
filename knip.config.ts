@@ -24,7 +24,6 @@ const knipConfig: KnipConfig = {
     "src/lib/idp/**",
     "src/lib/logging/**",
     "src/lib/middleware/**",
-    "src/lib/providers/**",
   ],
   ignoreDependencies: [
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below

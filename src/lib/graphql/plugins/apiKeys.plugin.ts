@@ -3,10 +3,36 @@ import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
 import { generateApiKey } from "lib/crypto";
-import { apiKeyTable } from "lib/db/schema";
+import { apiKeyTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { authz } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+/**
+ * Assert the observer has a specific permission on an organization via Warden.
+ * No-ops if Warden is not configured.
+ */
+const assertOrgPermission = async (
+  userId: string,
+  organizationId: string,
+  action: string,
+) => {
+  if (!authz) return;
+
+  const allowed = await authz.checkPermission(
+    userId,
+    "organization",
+    organizationId,
+    action,
+  );
+
+  if (!allowed) {
+    throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
+      extensions: { code: "FORBIDDEN" },
+    });
+  }
+};
 
 /**
  * API key management queries and mutations
@@ -95,6 +121,27 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
         }
 
         const { name, mode, workspaceId } = args.input;
+
+        // If workspace-scoped, verify org-level editor permission
+        if (workspaceId) {
+          const [workspace] = await db
+            .select({ organizationId: workspaceTable.organizationId })
+            .from(workspaceTable)
+            .where(eq(workspaceTable.id, workspaceId));
+
+          if (!workspace) {
+            throw new GraphQLError("Workspace not found", {
+              extensions: { code: "NOT_FOUND" },
+            });
+          }
+
+          await assertOrgPermission(
+            observer.id,
+            workspace.organizationId,
+            "editor",
+          );
+        }
+
         const { raw, hash, hint } = generateApiKey();
 
         const [apiKey] = await db
@@ -141,6 +188,38 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           throw new GraphQLError("Authentication required", {
             extensions: { code: "UNAUTHENTICATED" },
           });
+        }
+
+        // If the key is workspace-scoped, verify org-level editor permission
+        const [existing] = await db
+          .select({ workspaceId: apiKeyTable.workspaceId })
+          .from(apiKeyTable)
+          .where(
+            and(
+              eq(apiKeyTable.id, args.id),
+              eq(apiKeyTable.userId, observer.id),
+            ),
+          );
+
+        if (!existing) {
+          throw new GraphQLError("API key not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
+        if (existing.workspaceId) {
+          const [workspace] = await db
+            .select({ organizationId: workspaceTable.organizationId })
+            .from(workspaceTable)
+            .where(eq(workspaceTable.id, existing.workspaceId));
+
+          if (workspace) {
+            await assertOrgPermission(
+              observer.id,
+              workspace.organizationId,
+              "editor",
+            );
+          }
         }
 
         const [updated] = await db

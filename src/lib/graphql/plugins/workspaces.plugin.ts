@@ -5,7 +5,7 @@ import { GraphQLError } from "graphql";
 import { workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
-import { events } from "lib/providers";
+import { authz, events } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -22,6 +22,33 @@ const assertOrgMembership = async (
 
   if (!isMember) {
     throw new GraphQLError("Not a member of this organization", {
+      extensions: { code: "FORBIDDEN" },
+    });
+  }
+};
+
+/**
+ * Assert the observer has a specific permission on an organization via Warden.
+ * @param userId - The observer's database user ID
+ * @param organizationId - The organization to check against
+ * @param action - The required permission (e.g. "viewer", "editor", "admin")
+ */
+const assertOrgPermission = async (
+  userId: string,
+  organizationId: string,
+  action: string,
+) => {
+  if (!authz) return;
+
+  const allowed = await authz.checkPermission(
+    userId,
+    "organization",
+    organizationId,
+    action,
+  );
+
+  if (!allowed) {
+    throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
       extensions: { code: "FORBIDDEN" },
     });
   }
@@ -97,6 +124,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           observer.identityProviderId,
           args.organizationId,
         );
+        await assertOrgPermission(observer.id, args.organizationId, "viewer");
 
         return db
           .select()
@@ -128,6 +156,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         const { organizationId, name, slug, description } = args.input;
 
         await assertOrgMembership(observer.identityProviderId, organizationId);
+        await assertOrgPermission(observer.id, organizationId, "editor");
 
         const [workspace] = await db
           .insert(workspaceTable)
@@ -187,6 +216,11 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         await assertOrgMembership(
           observer.identityProviderId,
           existing.organizationId,
+        );
+        await assertOrgPermission(
+          observer.id,
+          existing.organizationId,
+          "editor",
         );
 
         const set: Record<string, unknown> = {
@@ -254,6 +288,11 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         await assertOrgMembership(
           observer.identityProviderId,
           existing.organizationId,
+        );
+        await assertOrgPermission(
+          observer.id,
+          existing.organizationId,
+          "admin",
         );
 
         const [deleted] = await db
