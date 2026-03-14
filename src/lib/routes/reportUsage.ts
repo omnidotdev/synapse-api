@@ -88,12 +88,13 @@ const reportUsageRoute = new Elysia().post(
         const dailyTokens = usage?.totalTokens ?? 0;
 
         // Only fire when crossing from below to at/above threshold (not on every batch)
-        // Skip threshold check for unlimited plans (tokensPerDay === -1)
+        // Skip threshold check for BYOK-only plans (managedTokenBudget === 0)
         const tokensBeforeThisReport = Math.max(0, dailyTokens - batchTokens);
-        const hasLimit = limits.tokensPerDay > 0;
+        const budget = limits.managedTokenBudget;
+        const hasLimit = budget > 0;
         const wasAlreadyAbove =
-          hasLimit && tokensBeforeThisReport >= limits.tokensPerDay * 0.8;
-        const isNowAbove = hasLimit && dailyTokens >= limits.tokensPerDay * 0.8;
+          hasLimit && tokensBeforeThisReport >= budget * 0.8;
+        const isNowAbove = hasLimit && dailyTokens >= budget * 0.8;
 
         if (isNowAbove && !wasAlreadyAbove) {
           publish({
@@ -102,9 +103,9 @@ const reportUsageRoute = new Elysia().post(
             organizationId,
             subject: first.userId,
             data: {
-              thresholdType: "rate_limit",
+              thresholdType: "managed_token_budget",
               current: dailyTokens,
-              limit: limits.tokensPerDay,
+              limit: budget,
               userId: first.userId,
               workspaceId: first.workspaceId,
             },
@@ -112,9 +113,9 @@ const reportUsageRoute = new Elysia().post(
           void events.emit({
             type: "synapse.usage.threshold",
             data: {
-              thresholdType: "rate_limit",
+              thresholdType: "managed_token_budget",
               current: dailyTokens,
-              limit: limits.tokensPerDay,
+              limit: budget,
               userId: first.userId,
               workspaceId: first.workspaceId,
             },

@@ -1,9 +1,9 @@
-type PlanTier = "free" | "pro" | "enterprise";
+type PlanTier = "free" | "pro" | "team";
 
 type PlanRateLimits = {
   requestsPerMinute: number;
-  tokensPerDay: number;
-  tokensPerMonth: number;
+  /** Max managed-mode tokens/month (-1 = unlimited, 0 = BYOK only) */
+  managedTokenBudget: number;
 };
 
 // Gateway rate limits (per-minute enforcement), distinct from monthly tier quotas
@@ -12,18 +12,15 @@ type PlanRateLimits = {
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
     requestsPerMinute: 60,
-    tokensPerDay: -1,
-    tokensPerMonth: 500_000,
+    managedTokenBudget: 0,
   },
   pro: {
     requestsPerMinute: 500,
-    tokensPerDay: -1,
-    tokensPerMonth: -1,
+    managedTokenBudget: 5_000_000,
   },
-  enterprise: {
+  team: {
     requestsPerMinute: 2_000,
-    tokensPerDay: -1,
-    tokensPerMonth: -1,
+    managedTokenBudget: 25_000_000,
   },
 };
 
