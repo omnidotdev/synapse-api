@@ -6,6 +6,9 @@ type PlanRateLimits = {
   tokensPerMonth: number;
 };
 
+// Gateway rate limits (per-minute enforcement), distinct from monthly tier quotas
+// in Omni API plan_feature (kind="operational") → Aether entitlements.
+// TODO: fetch from Aether at startup to stay in sync with billing tiers
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
     requestsPerMinute: 60,
