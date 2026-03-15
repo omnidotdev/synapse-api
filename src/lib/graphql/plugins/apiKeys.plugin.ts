@@ -2,10 +2,12 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { isWithinLimit } from "@omnidotdev/providers";
+
 import { generateApiKey } from "lib/crypto";
 import { apiKeyTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
-import { authz } from "lib/providers";
+import { authz, billing } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -139,6 +141,43 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             observer.id,
             workspace.organizationId,
             "editor",
+          );
+        }
+
+        // Enforce max_api_keys entitlement
+        const activeKeys = await db
+          .select({ id: apiKeyTable.id })
+          .from(apiKeyTable)
+          .where(
+            and(
+              eq(apiKeyTable.userId, observer.id),
+              isNull(apiKeyTable.revokedAt),
+            ),
+          );
+
+        const entitlements = await billing
+          .getEntitlements(
+            "user",
+            observer.identityProviderId ?? observer.id,
+            "synapse",
+          )
+          .catch(() => null);
+
+        const DEFAULT_LIMITS = {
+          max_api_keys: { free: 1, pro: 25, team: -1 },
+        };
+
+        if (
+          !isWithinLimit(
+            entitlements,
+            "max_api_keys",
+            activeKeys.length,
+            DEFAULT_LIMITS,
+          )
+        ) {
+          throw new GraphQLError(
+            "API key limit reached. Upgrade your plan for more keys",
+            { extensions: { code: "QUOTA_EXCEEDED" } },
           );
         }
 

@@ -7,8 +7,11 @@ import { describe, expect, test } from "bun:test";
 import { and, eq, isNull } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 
+import { isWithinLimit } from "@omnidotdev/providers";
+
 import { generateApiKey } from "lib/crypto";
 import { apiKeyTable } from "lib/db/schema";
+import { billing } from "lib/providers";
 import { apiKeyFactory, userFactory } from "test/factories";
 import { setupTestContext } from "test/setup/testContext";
 
@@ -42,6 +45,41 @@ const createApiKeyResolver = async (
 	}
 
 	const { name, mode, workspaceId } = args.input;
+
+	// Enforce max_api_keys entitlement
+	const activeKeys = await db
+		.select({ id: apiKeyTable.id })
+		.from(apiKeyTable)
+		.where(
+			and(eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt)),
+		);
+
+	const entitlements = await billing
+		.getEntitlements(
+			"user",
+			observer.identityProviderId ?? observer.id,
+			"synapse",
+		)
+		.catch(() => null);
+
+	const DEFAULT_LIMITS = {
+		max_api_keys: { free: 1, pro: 25, team: -1 },
+	};
+
+	if (
+		!isWithinLimit(
+			entitlements,
+			"max_api_keys",
+			activeKeys.length,
+			DEFAULT_LIMITS,
+		)
+	) {
+		throw new GraphQLError(
+			"API key limit reached. Upgrade your plan for more keys",
+			{ extensions: { code: "QUOTA_EXCEEDED" } },
+		);
+	}
+
 	const { raw, hash, hint } = generateApiKey();
 
 	const [apiKey] = await db
@@ -111,6 +149,57 @@ describe("createApiKey resolver", () => {
 				buildContext(null),
 			),
 		).rejects.toThrow("Authentication required");
+	});
+
+	test("allows creation when under limit", async () => {
+		const user = await userFactory.create(ctx.db);
+
+		const result = await createApiKeyResolver(
+			{ input: { name: "first key", mode: "byok" } },
+			buildContext(user),
+		);
+
+		expect(result.rawKey).toMatch(/^synapse_/);
+		expect(result.apiKeyId).toBeDefined();
+	});
+
+	test("throws QUOTA_EXCEEDED when at max_api_keys limit", async () => {
+		const user = await userFactory.create(ctx.db);
+
+		// Create first key (uses the free-tier limit of 1)
+		await createApiKeyResolver(
+			{ input: { name: "first key", mode: "byok" } },
+			buildContext(user),
+		);
+
+		// Second key should exceed the free-tier limit
+		expect(
+			createApiKeyResolver(
+				{ input: { name: "second key", mode: "byok" } },
+				buildContext(user),
+			),
+		).rejects.toThrow("API key limit reached");
+	});
+
+	test("does not count revoked keys toward limit", async () => {
+		const user = await userFactory.create(ctx.db);
+
+		// Create and revoke a key
+		const first = await createApiKeyResolver(
+			{ input: { name: "first key", mode: "byok" } },
+			buildContext(user),
+		);
+
+		await revokeApiKeyResolver({ id: first.apiKeyId }, buildContext(user));
+
+		// Should succeed since the revoked key doesn't count
+		const second = await createApiKeyResolver(
+			{ input: { name: "second key", mode: "byok" } },
+			buildContext(user),
+		);
+
+		expect(second.rawKey).toMatch(/^synapse_/);
+		expect(second.apiKeyId).toBeDefined();
 	});
 });
 
