@@ -173,7 +173,7 @@ describe("createApiKey resolver", () => {
 		);
 
 		// Second key should exceed the free-tier limit
-		expect(
+		await expect(
 			createApiKeyResolver(
 				{ input: { name: "second key", mode: "byok" } },
 				buildContext(user),

@@ -1,8 +1,7 @@
+import { isWithinLimit } from "@omnidotdev/providers";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
-
-import { isWithinLimit } from "@omnidotdev/providers";
 
 import { generateApiKey } from "lib/crypto";
 import { apiKeyTable, workspaceTable } from "lib/db/schema";
@@ -10,6 +9,11 @@ import { publish } from "lib/events/publisher";
 import { authz, billing } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+// Fallback limits when Aether is unreachable
+const DEFAULT_LIMITS = {
+  max_api_keys: { free: 1, pro: 25, team: -1 },
+};
 
 /**
  * Assert the observer has a specific permission on an organization via Warden.
@@ -162,10 +166,6 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             "synapse",
           )
           .catch(() => null);
-
-        const DEFAULT_LIMITS = {
-          max_api_keys: { free: 1, pro: 25, team: -1 },
-        };
 
         if (
           !isWithinLimit(
