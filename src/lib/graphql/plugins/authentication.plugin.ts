@@ -1,5 +1,5 @@
 import { useGenericAuth } from "@envelop/generic-auth";
-import { resolveAccessToken } from "@omnidotdev/providers";
+import { resolveAccessToken } from "@omnidotdev/providers/auth";
 import { QueryClient } from "@tanstack/query-core";
 import ms from "ms";
 

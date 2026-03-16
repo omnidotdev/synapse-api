@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { and, eq, isNull } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 
-import { isWithinLimit } from "@omnidotdev/providers";
+import { isWithinLimit } from "@omnidotdev/providers/billing";
 
 import { generateApiKey } from "lib/crypto";
 import { apiKeyTable } from "lib/db/schema";

@@ -1,4 +1,4 @@
-import { isWithinLimit } from "@omnidotdev/providers";
+import { isWithinLimit } from "@omnidotdev/providers/billing";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";

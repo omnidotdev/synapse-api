@@ -5,11 +5,9 @@
  * with app-specific configuration from environment variables.
  */
 
-import {
-  createAuthzProvider,
-  createBillingProvider,
-  createEventsProvider,
-} from "@omnidotdev/providers";
+import { createAuthzProvider } from "@omnidotdev/providers/authz";
+import { createBillingProvider } from "@omnidotdev/providers/billing";
+import { createEventsProvider } from "@omnidotdev/providers/events";
 
 import {
   AUTHZ_API_URL,
