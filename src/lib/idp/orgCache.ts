@@ -7,4 +7,4 @@ const orgExistsCache = new Map<
   { exists: boolean; expiresAt: number }
 >();
 
-export { orgExistsCache, CACHE_TTL_MS };
+export { CACHE_TTL_MS, orgExistsCache };

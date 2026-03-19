@@ -1,3 +1,4 @@
+import { isWithinLimit } from "@omnidotdev/providers/billing";
 import { eq } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
@@ -5,7 +6,7 @@ import { GraphQLError } from "graphql";
 import { workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
-import { authz, events } from "lib/providers";
+import { authz, billing, events } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -52,6 +53,11 @@ const assertOrgPermission = async (
       extensions: { code: "FORBIDDEN" },
     });
   }
+};
+
+// Fallback limits when Aether is unreachable
+const DEFAULT_LIMITS = {
+  max_workspaces: { free: 1, pro: 10, team: -1 },
 };
 
 /**
@@ -157,6 +163,30 @@ const workspacesPlugin = makeExtendSchemaPlugin({
 
         await assertOrgMembership(observer.identityProviderId, organizationId);
         await assertOrgPermission(observer.id, organizationId, "editor");
+
+        // Enforce max_workspaces entitlement
+        const existingWorkspaces = await db
+          .select({ id: workspaceTable.id })
+          .from(workspaceTable)
+          .where(eq(workspaceTable.organizationId, organizationId));
+
+        const entitlements = await billing
+          .getEntitlements("organization", organizationId, "synapse")
+          .catch(() => null);
+
+        if (
+          !isWithinLimit(
+            entitlements,
+            "max_workspaces",
+            existingWorkspaces.length,
+            DEFAULT_LIMITS,
+          )
+        ) {
+          throw new GraphQLError(
+            "Workspace limit reached. Upgrade your plan for more workspaces",
+            { extensions: { code: "QUOTA_EXCEEDED" } },
+          );
+        }
 
         const [workspace] = await db
           .insert(workspaceTable)

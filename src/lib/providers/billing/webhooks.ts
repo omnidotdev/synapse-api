@@ -1,10 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { BILLING_WEBHOOK_SECRET } from "lib/config/env.config";
+import { dbPool } from "lib/db";
+import { userTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { billing } from "lib/providers";
+
+import type { PlanTier } from "lib/config/plans.config";
 
 interface BillingWebhookPayload {
   eventType: string;
@@ -94,6 +99,29 @@ const billingWebhook = new Elysia().post(
         case "entitlement.deleted":
           // Invalidate all cached entitlements for this entity
           billing.invalidateCache?.(body.entityType, body.entityId);
+
+          // Sync user.plan when the tier entitlement changes
+          if (
+            body.featureKey === "tier" &&
+            body.entityType === "user" &&
+            body.eventType !== "entitlement.deleted"
+          ) {
+            const newTier = body.value as PlanTier;
+
+            if (newTier && ["free", "pro", "team"].includes(newTier)) {
+              dbPool
+                .update(userTable)
+                .set({
+                  plan: newTier,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(userTable.identityProviderId, body.entityId))
+                .execute()
+                .catch((err) =>
+                  console.error("Failed to sync user.plan:", err),
+                );
+            }
+          }
 
           // Publish event (best-effort, fire-and-forget)
           void publish({

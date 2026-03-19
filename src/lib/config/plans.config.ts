@@ -8,7 +8,9 @@ type PlanRateLimits = {
 
 // Gateway rate limits (per-minute enforcement), distinct from monthly tier quotas
 // in Omni API plan_feature (kind="operational") → Aether entitlements.
-// TODO: fetch from Aether at startup to stay in sync with billing tiers
+// These hardcoded defaults are the canonical plan-level rate limits; individual
+// overrides are resolved at key-resolution time via Aether's entity-scoped
+// entitlements, so there is no plan-template endpoint to sync from at startup
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
     requestsPerMinute: 60,
@@ -24,5 +26,5 @@ const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   },
 };
 
-export { PLAN_RATE_LIMITS };
 export type { PlanRateLimits, PlanTier };
+export { PLAN_RATE_LIMITS };

@@ -6,6 +6,7 @@ import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { decrypt, hashApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
 import { apiKeyTable, providerKeyTable, userTable } from "lib/db/schema";
+import { billing } from "lib/providers";
 import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
 import type { PlanTier } from "lib/config/plans.config";
@@ -100,7 +101,35 @@ const resolveKeyRoute = new Elysia().post(
       }
     }
 
-    const plan = (user.plan ?? "free") as PlanTier;
+    // Resolve plan: trust DB if already upgraded, otherwise check Aether
+    // to catch cases where webhook hasn't synced yet
+    let plan = (user.plan ?? "free") as PlanTier;
+
+    if (plan === "free") {
+      const entitlements = await billing
+        .getEntitlements("user", user.identityProviderId, "synapse")
+        .catch(() => null);
+
+      const tierEntitlement = entitlements?.entitlements?.find(
+        (e) => e.featureKey === "tier",
+      );
+
+      if (
+        tierEntitlement?.value &&
+        ["pro", "team"].includes(String(tierEntitlement.value))
+      ) {
+        plan = String(tierEntitlement.value) as PlanTier;
+
+        // Backfill the DB so future lookups are fast
+        dbPool
+          .update(userTable)
+          .set({ plan, updatedAt: new Date().toISOString() })
+          .where(eq(userTable.id, user.id))
+          .execute()
+          .catch(() => {});
+      }
+    }
+
     const rateLimits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
 
     return {

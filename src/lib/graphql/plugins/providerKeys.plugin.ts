@@ -1,3 +1,4 @@
+import { isWithinLimit } from "@omnidotdev/providers/billing";
 import { and, eq } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
@@ -5,7 +6,7 @@ import { GraphQLError } from "graphql";
 import { encrypt } from "lib/crypto";
 import { providerKeyTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
-import { events } from "lib/providers";
+import { billing, events } from "lib/providers";
 import {
   isVaultEnabled,
   listVaultKeys,
@@ -15,6 +16,11 @@ import {
 } from "lib/vault/client";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+// Fallback limits when Aether is unreachable
+const DEFAULT_LIMITS = {
+  max_provider_keys: { free: 6, pro: 10, team: -1 },
+};
 
 /**
  * Extract the bearer token from the request Authorization header
@@ -126,6 +132,34 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             );
           }
 
+          // Enforce max_provider_keys entitlement (skip for updates)
+          const vaultKeys = await listVaultKeys(accessToken);
+          const isUpdate = vaultKeys.some((vk) => vk.provider === provider);
+
+          if (!isUpdate) {
+            const entitlements = await billing
+              .getEntitlements(
+                "user",
+                observer.identityProviderId ?? observer.id,
+                "synapse",
+              )
+              .catch(() => null);
+
+            if (
+              !isWithinLimit(
+                entitlements,
+                "max_provider_keys",
+                vaultKeys.length,
+                DEFAULT_LIMITS,
+              )
+            ) {
+              throw new GraphQLError(
+                "Provider key limit reached. Upgrade your plan for more keys",
+                { extensions: { code: "QUOTA_EXCEEDED" } },
+              );
+            }
+          }
+
           const result = await setVaultKey(accessToken, {
             provider,
             key,
@@ -170,6 +204,47 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         }
 
         const { db } = ctx;
+
+        // Enforce max_provider_keys entitlement (skip for updates)
+        const existingKeys = await db
+          .select({ id: providerKeyTable.id })
+          .from(providerKeyTable)
+          .where(eq(providerKeyTable.userId, observer.id));
+
+        const isUpdate = await db
+          .select({ id: providerKeyTable.id })
+          .from(providerKeyTable)
+          .where(
+            and(
+              eq(providerKeyTable.userId, observer.id),
+              eq(providerKeyTable.provider, provider),
+            ),
+          );
+
+        if (isUpdate.length === 0) {
+          const entitlements = await billing
+            .getEntitlements(
+              "user",
+              observer.identityProviderId ?? observer.id,
+              "synapse",
+            )
+            .catch(() => null);
+
+          if (
+            !isWithinLimit(
+              entitlements,
+              "max_provider_keys",
+              existingKeys.length,
+              DEFAULT_LIMITS,
+            )
+          ) {
+            throw new GraphQLError(
+              "Provider key limit reached. Upgrade your plan for more keys",
+              { extensions: { code: "QUOTA_EXCEEDED" } },
+            );
+          }
+        }
+
         const encryptedKey = encrypt(key);
         // Last 4 characters of the raw key as a hint
         const keyHint = key.slice(-4);
