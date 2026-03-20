@@ -1,5 +1,5 @@
 import { isWithinLimit } from "@omnidotdev/providers/billing";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
@@ -148,7 +148,9 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           );
         }
 
-        // Enforce max_api_keys entitlement
+        // Enforce max_api_keys entitlement (managed keys are excluded —
+        // they are system-provisioned by other Omni apps and should not
+        // consume the user's quota)
         const activeKeys = await db
           .select({ id: apiKeyTable.id })
           .from(apiKeyTable)
@@ -156,6 +158,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             and(
               eq(apiKeyTable.userId, observer.id),
               isNull(apiKeyTable.revokedAt),
+              ne(apiKeyTable.mode, "managed"),
             ),
           );
 

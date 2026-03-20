@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 process.env.ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
 import { describe, expect, test } from "bun:test";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 
 import { isWithinLimit } from "@omnidotdev/providers/billing";
@@ -46,12 +46,16 @@ const createApiKeyResolver = async (
 
 	const { name, mode, workspaceId } = args.input;
 
-	// Enforce max_api_keys entitlement
+	// Enforce max_api_keys entitlement (managed keys excluded from quota)
 	const activeKeys = await db
 		.select({ id: apiKeyTable.id })
 		.from(apiKeyTable)
 		.where(
-			and(eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt)),
+			and(
+				eq(apiKeyTable.userId, observer.id),
+				isNull(apiKeyTable.revokedAt),
+				ne(apiKeyTable.mode, "managed"),
+			),
 		);
 
 	const entitlements = await billing
@@ -179,6 +183,29 @@ describe("createApiKey resolver", () => {
 				buildContext(user),
 			),
 		).rejects.toThrow("API key limit reached");
+	});
+
+	test("does not count managed keys toward limit", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { hash, hint } = generateApiKey();
+
+		// Insert a managed key (auto-provisioned by another Omni app)
+		await ctx.db.insert(apiKeyTable).values({
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			name: "Beacon",
+			mode: "managed",
+		});
+
+		// User should still be able to create their own key
+		const result = await createApiKeyResolver(
+			{ input: { name: "my key", mode: "byok" } },
+			buildContext(user),
+		);
+
+		expect(result.rawKey).toMatch(/^synapse_/);
+		expect(result.apiKeyId).toBeDefined();
 	});
 
 	test("does not count revoked keys toward limit", async () => {
