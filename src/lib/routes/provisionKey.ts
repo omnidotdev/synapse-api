@@ -5,6 +5,7 @@ import { GATEWAY_SECRET } from "lib/config/env.config";
 import { generateApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
 import { apiKeyTable, userTable } from "lib/db/schema";
+import { billing } from "lib/providers";
 
 import type { PlanTier } from "lib/config/plans.config";
 
@@ -46,6 +47,23 @@ const provisionKeyRoute = new Elysia().post(
         },
       })
       .returning();
+
+    // Check api_access entitlement before provisioning.
+    // If Aether returns entitlements but api_access is explicitly revoked
+    // (value === "false"), deny the request. Gracefully allow if Aether
+    // is unreachable or returns null.
+    const entitlements = await billing
+      .getEntitlements("user", user.identityProviderId ?? user.id, "synapse")
+      .catch(() => null);
+
+    const apiAccess = entitlements?.entitlements?.find(
+      (e) => e.featureKey === "api_access",
+    );
+
+    if (apiAccess && apiAccess.value === "false") {
+      set.status = 403;
+      return { error: "api_access entitlement denied" };
+    }
 
     const keyName = `${body.source || DEFAULT_KEY_SOURCE} (auto)`;
 

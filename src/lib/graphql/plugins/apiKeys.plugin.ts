@@ -96,6 +96,22 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
       ) {
         const { db } = ctx;
 
+        // If workspace-scoped, verify org-level viewer permission
+        if (args.workspaceId) {
+          const [workspace] = await db
+            .select({ organizationId: workspaceTable.organizationId })
+            .from(workspaceTable)
+            .where(eq(workspaceTable.id, args.workspaceId));
+
+          if (workspace) {
+            await assertOrgPermission(
+              observer.id,
+              workspace.organizationId,
+              "viewer",
+            );
+          }
+        }
+
         const conditions = [
           eq(apiKeyTable.userId, observer.id),
           isNull(apiKeyTable.revokedAt),
