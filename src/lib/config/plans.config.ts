@@ -18,11 +18,11 @@ const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   },
   pro: {
     requestsPerMinute: 500,
-    managedTokenBudget: 5_000_000,
+    managedTokenBudget: 0,
   },
   team: {
     requestsPerMinute: 2_000,
-    managedTokenBudget: 25_000_000,
+    managedTokenBudget: 0,
   },
 };
 
