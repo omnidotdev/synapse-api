@@ -2,7 +2,8 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
-import { usageEventTable } from "lib/db/schema";
+import { usageEventTable, workspaceTable } from "lib/db/schema";
+import { authz } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
@@ -61,6 +62,34 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
         ];
 
         if (args.workspaceId) {
+          // Verify the observer has viewer permission on the workspace's org
+          const [workspace] = await db
+            .select({ organizationId: workspaceTable.organizationId })
+            .from(workspaceTable)
+            .where(eq(workspaceTable.id, args.workspaceId));
+
+          if (!workspace) {
+            throw new GraphQLError("Workspace not found", {
+              extensions: { code: "NOT_FOUND" },
+            });
+          }
+
+          if (authz) {
+            const allowed = await authz.checkPermission(
+              observer.id,
+              "organization",
+              workspace.organizationId,
+              "viewer",
+            );
+
+            if (!allowed) {
+              throw new GraphQLError(
+                "Insufficient permissions: requires viewer",
+                { extensions: { code: "FORBIDDEN" } },
+              );
+            }
+          }
+
           conditions.push(eq(usageEventTable.workspaceId, args.workspaceId));
         }
 

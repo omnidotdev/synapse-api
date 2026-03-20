@@ -413,3 +413,171 @@ describe("authz enforcement: workspace mutations", () => {
 		);
 	});
 });
+
+// ── usageBreakdown authZ ────────────────────────────────────────────
+
+const queryUsageBreakdownWithAuthz = async (
+	args: { startDate: string; endDate: string; workspaceId?: string },
+	context: GraphQLContext,
+) => {
+	const { observer, db } = context;
+
+	if (!observer) {
+		throw new GraphQLError("Authentication required", {
+			extensions: { code: "UNAUTHENTICATED" },
+		});
+	}
+
+	if (args.workspaceId) {
+		const { eq } = await import("drizzle-orm");
+
+		const [workspace] = await db
+			.select({ organizationId: workspaceTable.organizationId })
+			.from(workspaceTable)
+			.where(eq(workspaceTable.id, args.workspaceId));
+
+		if (!workspace) {
+			throw new GraphQLError("Workspace not found", {
+				extensions: { code: "NOT_FOUND" },
+			});
+		}
+
+		if (mockAuthz) {
+			const allowed = await mockAuthz.checkPermission(
+				observer.id,
+				"organization",
+				workspace.organizationId,
+				"viewer",
+			);
+
+			if (!allowed) {
+				throw new GraphQLError(
+					"Insufficient permissions: requires viewer",
+					{ extensions: { code: "FORBIDDEN" } },
+				);
+			}
+		}
+	}
+
+	return { byModel: [], byDay: [] };
+};
+
+describe("authz enforcement: usageBreakdown query", () => {
+	test("succeeds without workspaceId (no authz check needed)", async () => {
+		mockAuthz = {
+			checkPermission: mock(async () => false),
+		};
+
+		const user = await userFactory.create(ctx.db);
+
+		const result = await queryUsageBreakdownWithAuthz(
+			{ startDate: "2026-01-01", endDate: "2026-01-31" },
+			buildContext(user),
+		);
+
+		expect(result.byModel).toEqual([]);
+		expect(mockAuthz.checkPermission).not.toHaveBeenCalled();
+	});
+
+	test("succeeds when authz grants viewer permission for workspace-scoped query", async () => {
+		mockAuthz = {
+			checkPermission: mock(async () => true),
+		};
+
+		const user = await userFactory.create(ctx.db);
+		const orgId = "00000000-0000-0000-0000-000000000020";
+
+		const workspace = await workspaceFactory.create(ctx.db, {
+			organizationId: orgId,
+		});
+
+		const result = await queryUsageBreakdownWithAuthz(
+			{
+				startDate: "2026-01-01",
+				endDate: "2026-01-31",
+				workspaceId: workspace.id,
+			},
+			buildContext(user),
+		);
+
+		expect(result.byModel).toEqual([]);
+		expect(mockAuthz.checkPermission).toHaveBeenCalledWith(
+			user.id,
+			"organization",
+			orgId,
+			"viewer",
+		);
+	});
+
+	test("throws FORBIDDEN when authz denies viewer permission for workspace-scoped query", async () => {
+		mockAuthz = {
+			checkPermission: mock(async () => false),
+		};
+
+		const user = await userFactory.create(ctx.db);
+		const orgId = "00000000-0000-0000-0000-000000000021";
+
+		const workspace = await workspaceFactory.create(ctx.db, {
+			organizationId: orgId,
+		});
+
+		await expect(
+			queryUsageBreakdownWithAuthz(
+				{
+					startDate: "2026-01-01",
+					endDate: "2026-01-31",
+					workspaceId: workspace.id,
+				},
+				buildContext(user),
+			),
+		).rejects.toThrow("Insufficient permissions: requires viewer");
+
+		expect(mockAuthz.checkPermission).toHaveBeenCalledWith(
+			user.id,
+			"organization",
+			orgId,
+			"viewer",
+		);
+	});
+
+	test("throws NOT_FOUND for non-existent workspace", async () => {
+		mockAuthz = {
+			checkPermission: mock(async () => true),
+		};
+
+		const user = await userFactory.create(ctx.db);
+
+		await expect(
+			queryUsageBreakdownWithAuthz(
+				{
+					startDate: "2026-01-01",
+					endDate: "2026-01-31",
+					workspaceId: "00000000-0000-0000-0000-000000000099",
+				},
+				buildContext(user),
+			),
+		).rejects.toThrow("Workspace not found");
+	});
+
+	test("succeeds when authz provider is null (graceful degradation)", async () => {
+		mockAuthz = null;
+
+		const user = await userFactory.create(ctx.db);
+		const orgId = "00000000-0000-0000-0000-000000000022";
+
+		const workspace = await workspaceFactory.create(ctx.db, {
+			organizationId: orgId,
+		});
+
+		const result = await queryUsageBreakdownWithAuthz(
+			{
+				startDate: "2026-01-01",
+				endDate: "2026-01-31",
+				workspaceId: workspace.id,
+			},
+			buildContext(user),
+		);
+
+		expect(result.byModel).toEqual([]);
+	});
+});

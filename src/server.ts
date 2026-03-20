@@ -15,6 +15,8 @@ import webhooks from "webhooks";
 
 import appConfig from "lib/config/app.config";
 import {
+  AUTHZ_API_URL,
+  AUTHZ_ENABLED,
   CORS_ALLOWED_ORIGINS,
   IGGY_HOST,
   IGGY_PASSWORD,
@@ -39,6 +41,14 @@ import {
   resolveProviderKeysRoute,
   usageRoute,
 } from "lib/routes";
+
+// Warn if authZ is enabled but the API URL is missing (fail-open risk)
+if (AUTHZ_ENABLED === "true" && !AUTHZ_API_URL) {
+  // biome-ignore lint/suspicious/noConsole: startup warning
+  console.warn(
+    "[AuthZ] AUTHZ_ENABLED is true but AUTHZ_API_URL is not set — authorization checks will be skipped",
+  );
+}
 
 // ensure database exists before starting
 await ensureDatabase();

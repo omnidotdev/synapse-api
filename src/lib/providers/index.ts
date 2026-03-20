@@ -11,14 +11,16 @@ import { createEventsProvider } from "@omnidotdev/providers/events";
 
 import {
   AUTHZ_API_URL,
+  AUTHZ_ENABLED,
   BILLING_BASE_URL,
   VORTEX_API_KEY,
   VORTEX_API_URL,
 } from "lib/config/env.config";
 
-export const authz = AUTHZ_API_URL
-  ? createAuthzProvider({ apiUrl: AUTHZ_API_URL })
-  : null;
+export const authz =
+  AUTHZ_ENABLED === "true" && AUTHZ_API_URL
+    ? createAuthzProvider({ apiUrl: AUTHZ_API_URL })
+    : null;
 
 export const billing = createBillingProvider(
   BILLING_BASE_URL
