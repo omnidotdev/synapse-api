@@ -75,7 +75,7 @@
     "postgraphile-plugin-connection-filter": "3.0.0-rc.3"
   },
   "overrides": {
-    "graphql": "16.12.0",
+    "graphql": "16.13.1",
     "grafast": "1.0.0-rc.9",
     "pg-sql2": "5.0.0-rc.5"
   }
