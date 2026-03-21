@@ -4,14 +4,17 @@ import { randomBytes } from "node:crypto";
 // GATEWAY_SECRET is set in .env.test (loaded before preload triggers env.config evaluation)
 process.env.ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { Elysia } from "elysia";
 
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { encrypt, generateApiKey } from "lib/crypto";
+import { billing } from "lib/providers";
 import resolveKeyRoute from "lib/routes/resolveKey";
 import { apiKeyFactory, providerKeyFactory, userFactory } from "test/factories";
 import { setupTestContext } from "test/setup/testContext";
+
+import type { EntitlementsResponse } from "@omnidotdev/providers/billing";
 
 const GATEWAY_SECRET = "test-gateway-secret";
 
@@ -171,5 +174,110 @@ describe("POST /internal/resolve-key", () => {
 		const body = await res.json();
 		expect(body.plan).toBe("pro");
 		expect(body.rateLimits).toEqual(PLAN_RATE_LIMITS.pro);
+	});
+
+	test("returns 403 when BYOK key has byok_enabled entitlement set to 0", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		const rawProviderKey = "sk-ant-test-byok-blocked";
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "anthropic",
+			encryptedKey: encrypt(rawProviderKey),
+			keyHint: rawProviderKey.slice(-4),
+		});
+
+		// Mock billing to return byok_enabled = 0
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements").mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "byok_enabled", value: 0 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(403);
+
+		const body = await res.json();
+		expect(body.error).toBe("byok_not_enabled");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("allows BYOK key when byok_enabled entitlement is 1", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		const rawProviderKey = "sk-ant-test-byok-allowed";
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "anthropic",
+			encryptedKey: encrypt(rawProviderKey),
+			keyHint: rawProviderKey.slice(-4),
+		});
+
+		// Mock billing to return byok_enabled = 1
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements").mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "byok_enabled", value: 1 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.mode).toBe("byok");
+		expect(body.providerKeys).toHaveLength(1);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("allows BYOK key when byok_enabled entitlement is absent", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		const rawProviderKey = "sk-ant-test-byok-no-entitlement";
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "anthropic",
+			encryptedKey: encrypt(rawProviderKey),
+			keyHint: rawProviderKey.slice(-4),
+		});
+
+		// Noop provider returns null (no entitlements configured)
+		// so byok_enabled is absent - should be allowed
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.mode).toBe("byok");
+		expect(body.providerKeys).toHaveLength(1);
 	});
 });

@@ -130,6 +130,22 @@ const resolveKeyRoute = new Elysia().post(
       }
     }
 
+    // Enforce byok_enabled entitlement
+    if (apiKey.mode === "byok") {
+      const entitlements = await billing
+        .getEntitlements("user", user.identityProviderId, "synapse")
+        .catch(() => null);
+
+      const byokEntitlement = entitlements?.entitlements?.find(
+        (e) => e.featureKey === "byok_enabled",
+      );
+
+      if (byokEntitlement && Number(byokEntitlement.value) === 0) {
+        set.status = 403;
+        return { error: "byok_not_enabled" };
+      }
+    }
+
     const rateLimits = PLAN_RATE_LIMITS[plan] ?? PLAN_RATE_LIMITS.free;
 
     return {

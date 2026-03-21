@@ -50,111 +50,121 @@ const verifySignature = (
 };
 
 /**
- * Billing webhook receiver.
- * Receives entitlement change events from the billing service.
- *
- * This handler:
- * 1. Verifies HMAC-SHA256 signature
- * 2. Invalidates local billing cache
+ * Process an entitlement webhook event from the billing service.
+ * Verifies HMAC-SHA256 signature, invalidates local billing cache,
+ * and syncs user plan tier.
  */
-const billingWebhook = new Elysia().post(
-  "/billing",
-  async ({ request, headers, set }) => {
-    const signature = headers["x-billing-signature"];
+async function processWebhook(request: Request, signature?: string) {
+  if (!BILLING_WEBHOOK_SECRET) {
+    console.warn(
+      "BILLING_WEBHOOK_SECRET not set - rejecting unverifiable webhook",
+    );
+    return { status: 403, body: { error: "Webhook secret not configured" } };
+  }
 
-    if (!BILLING_WEBHOOK_SECRET) {
-      console.warn(
-        "BILLING_WEBHOOK_SECRET not set - rejecting unverifiable webhook",
+  try {
+    const rawBody = await request.text();
+
+    if (BILLING_WEBHOOK_SECRET && signature) {
+      const isValid = verifySignature(
+        rawBody,
+        signature,
+        BILLING_WEBHOOK_SECRET,
       );
-      set.status = 403;
-      return { error: "Webhook secret not configured" };
+
+      if (!isValid) {
+        return { status: 401, body: { error: "Invalid signature" } };
+      }
+    } else if (BILLING_WEBHOOK_SECRET && !signature) {
+      return { status: 401, body: { error: "Missing signature" } };
     }
 
-    try {
-      const rawBody = await request.text();
+    const body = JSON.parse(rawBody) as BillingWebhookPayload;
 
-      // Verify signature if secret is configured
-      if (BILLING_WEBHOOK_SECRET && signature) {
-        const isValid = verifySignature(
-          rawBody,
-          signature,
-          BILLING_WEBHOOK_SECRET,
-        );
+    switch (body.eventType) {
+      case "entitlement.created":
+      case "entitlement.updated":
+      case "entitlement.deleted":
+        billing.invalidateCache?.(body.entityType, body.entityId);
 
-        if (!isValid) {
-          set.status = 401;
-          return { error: "Invalid signature" };
-        }
-      } else if (BILLING_WEBHOOK_SECRET && !signature) {
-        set.status = 401;
-        return { error: "Missing signature" };
-      }
+        if (
+          body.featureKey === "tier" &&
+          body.entityType === "user" &&
+          body.eventType !== "entitlement.deleted"
+        ) {
+          const newTier = body.value as PlanTier;
 
-      const body = JSON.parse(rawBody) as BillingWebhookPayload;
-
-      // Handle events - invalidate local cache
-      switch (body.eventType) {
-        case "entitlement.created":
-        case "entitlement.updated":
-        case "entitlement.deleted":
-          // Invalidate all cached entitlements for this entity
-          billing.invalidateCache?.(body.entityType, body.entityId);
-
-          // Sync user.plan when the tier entitlement changes
-          if (
-            body.featureKey === "tier" &&
-            body.entityType === "user" &&
-            body.eventType !== "entitlement.deleted"
-          ) {
-            const newTier = body.value as PlanTier;
-
-            if (newTier && ["free", "pro", "team"].includes(newTier)) {
-              dbPool
-                .update(userTable)
-                .set({
-                  plan: newTier,
-                  updatedAt: new Date().toISOString(),
-                })
-                .where(eq(userTable.identityProviderId, body.entityId))
-                .execute()
-                .catch((err) =>
-                  console.error("Failed to sync user.plan:", err),
-                );
-            }
+          if (newTier && ["free", "pro", "team"].includes(newTier)) {
+            dbPool
+              .update(userTable)
+              .set({
+                plan: newTier,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(userTable.identityProviderId, body.entityId))
+              .execute()
+              .catch((err) => console.error("Failed to sync user.plan:", err));
           }
+        }
 
-          // Publish event (best-effort, fire-and-forget)
-          void publish({
-            type: "synapse.entitlement.changed",
-            source: "synapse-api",
-            organizationId: body.entityId,
-            subject: body.entityId,
-            data: {
-              eventType: body.eventType,
-              entityType: body.entityType,
-              entityId: body.entityId,
-              productId: body.productId,
-              featureKey: body.featureKey,
-            },
-          });
-          break;
-        default:
-          break;
-      }
-
-      set.status = 200;
-      return { received: true };
-    } catch (err) {
-      console.error("Error processing billing webhook:", err);
-      set.status = 500;
-      return { error: "Internal Server Error" };
+        void publish({
+          type: "synapse.entitlement.changed",
+          source: "synapse-api",
+          organizationId: body.entityId,
+          subject: body.entityId,
+          data: {
+            eventType: body.eventType,
+            entityType: body.entityType,
+            entityId: body.entityId,
+            productId: body.productId,
+            featureKey: body.featureKey,
+          },
+        });
+        break;
+      default:
+        break;
     }
-  },
-  {
-    headers: t.Object({
-      "x-billing-signature": t.Optional(t.String()),
-    }),
-  },
-);
+
+    return { status: 200, body: { received: true } };
+  } catch (err) {
+    console.error("Error processing billing webhook:", err);
+    return { status: 500, body: { error: "Internal Server Error" } };
+  }
+}
+
+const webhookSchema = {
+  headers: t.Object({
+    "x-billing-signature": t.Optional(t.String()),
+  }),
+};
+
+/**
+ * Billing webhook receiver with both /billing and /entitlements paths.
+ */
+const billingWebhook = new Elysia()
+  .post(
+    "/billing",
+    async ({ request, headers, set }) => {
+      const result = await processWebhook(
+        request,
+        headers["x-billing-signature"],
+      );
+      set.status = result.status;
+      return result.body;
+    },
+    webhookSchema,
+  )
+  .post(
+    "/entitlements",
+    async ({ request, headers, set }) => {
+      const result = await processWebhook(
+        request,
+        headers["x-billing-signature"],
+      );
+      set.status = result.status;
+      return result.body;
+    },
+    webhookSchema,
+  );
 
 export default billingWebhook;
