@@ -109,7 +109,7 @@ async function processWebhook(request: Request, signature?: string) {
 
         void publish({
           type: "synapse.entitlement.changed",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: body.entityId,
           subject: body.entityId,
           data: {

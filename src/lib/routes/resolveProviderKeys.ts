@@ -81,7 +81,7 @@ const resolveProviderKeysRoute = new Elysia().post(
 
         publish({
           type: "synapse.provider.error",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: body.identityProviderId,
           subject: body.identityProviderId,
           data: {

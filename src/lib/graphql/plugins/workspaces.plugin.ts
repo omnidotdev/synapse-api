@@ -200,7 +200,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
 
         void publish({
           type: "synapse.workspace.created",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId,
           subject: workspace.id,
           data: { workspaceId: workspace.id, name, slug, organizationId },
@@ -275,7 +275,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
 
         void publish({
           type: "synapse.workspace.updated",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: workspace.organizationId,
           subject: workspace.id,
           data: { workspaceId: workspace.id, ...args.input },
@@ -333,7 +333,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         if (deleted) {
           void publish({
             type: "synapse.workspace.deleted",
-            source: "synapse-api",
+            source: "omni.synapse",
             organizationId: deleted.organizationId,
             subject: args.id,
             data: { workspaceId: args.id },

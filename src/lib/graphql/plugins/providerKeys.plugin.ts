@@ -186,7 +186,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
           // Publish event (best-effort, fire-and-forget)
           void publish({
             type: "synapse.provider_key.upserted",
-            source: "synapse-api",
+            source: "omni.synapse",
             organizationId: observer.id,
             subject: observer.id,
             data: { providerKeyId: syntheticKey.id, provider },
@@ -268,7 +268,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
         // Publish event (best-effort, fire-and-forget)
         void publish({
           type: "synapse.provider_key.upserted",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: observer.id,
           subject: observer.id,
           data: { providerKeyId: providerKey.id, provider },
@@ -321,7 +321,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
             // Publish event (best-effort, fire-and-forget)
             void publish({
               type: "synapse.provider_key.deleted",
-              source: "synapse-api",
+              source: "omni.synapse",
               organizationId: observer.id,
               subject: observer.id,
               data: { providerKeyId: args.id },
@@ -353,7 +353,7 @@ const providerKeysPlugin = makeExtendSchemaPlugin({
           // Publish event (best-effort, fire-and-forget)
           void publish({
             type: "synapse.provider_key.deleted",
-            source: "synapse-api",
+            source: "omni.synapse",
             organizationId: observer.id,
             subject: observer.id,
             data: { providerKeyId: args.id },

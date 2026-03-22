@@ -113,7 +113,7 @@ const preferencesPlugin = makeExtendSchemaPlugin({
 
         void publish({
           type: "synapse.preferences.updated",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: observer.id,
           subject: observer.id,
           data: { userId: observer.id, ...args.input },

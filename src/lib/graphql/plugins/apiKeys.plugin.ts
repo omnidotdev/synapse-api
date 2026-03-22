@@ -263,7 +263,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
         // Publish event (best-effort, fire-and-forget)
         void publish({
           type: "synapse.api_key.created",
-          source: "synapse-api",
+          source: "omni.synapse",
           organizationId: observer.id,
           subject: observer.id,
           data: {
@@ -345,7 +345,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           // Publish event (best-effort, fire-and-forget)
           void publish({
             type: "synapse.api_key.revoked",
-            source: "synapse-api",
+            source: "omni.synapse",
             organizationId: observer.id,
             subject: observer.id,
             data: { apiKeyId: args.id },

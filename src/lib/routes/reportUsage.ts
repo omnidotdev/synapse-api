@@ -33,7 +33,7 @@ const reportUsageRoute = new Elysia().post(
 
     publish({
       type: "synapse.usage.recorded",
-      source: "synapse-api",
+      source: "omni.synapse",
       organizationId,
       subject: first.userId,
       data: {
@@ -99,7 +99,7 @@ const reportUsageRoute = new Elysia().post(
         if (isNowAbove && !wasAlreadyAbove) {
           publish({
             type: "synapse.usage.threshold",
-            source: "synapse-api",
+            source: "omni.synapse",
             organizationId,
             subject: first.userId,
             data: {
