@@ -29,6 +29,7 @@ const knipConfig: KnipConfig = {
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
+    "drizzle-kit",
   ],
   ignoreBinaries: ["tsc"],
   tags: ["-knipignore"],
