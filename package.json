@@ -77,6 +77,6 @@
   "overrides": {
     "graphql": "16.13.1",
     "grafast": "1.0.0-rc.9",
-    "pg-sql2": "5.0.0-rc.5"
+    "pg-sql2": "5.0.0"
   }
 }
