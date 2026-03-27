@@ -1,5 +1,6 @@
 # Agentic
 .claude/
+.playwright-mcp/
 
 build/
 node_modules/
