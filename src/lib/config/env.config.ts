@@ -49,3 +49,9 @@ export const {
 export const isDevEnv = NODE_ENV === "development",
   isProdEnv = NODE_ENV === "production",
   protectRoutes = PROTECT_ROUTES === "true";
+
+// Startup warnings for optional integrations
+if (!BILLING_BASE_URL) console.warn("BILLING_BASE_URL not set, billing disabled");
+if (!AUTHZ_API_URL) console.warn("AUTHZ_API_URL not set, authorization disabled");
+if (!VORTEX_API_URL) console.warn("VORTEX_API_URL not set, event streaming disabled");
+if (!GATEKEEPER_URL) console.warn("GATEKEEPER_URL not set, vault key proxying disabled");
