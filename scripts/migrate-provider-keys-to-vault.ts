@@ -6,8 +6,8 @@
  *
  * Required env vars:
  *   ENCRYPTION_KEY          - Synapse AES-256-GCM key (base64)
- *   GATEKEEPER_URL          - Gatekeeper base URL (e.g. http://localhost:4000)
- *   GATEKEEPER_SERVICE_KEY  - S2S bearer token for Gatekeeper
+ *   AUTH_URL                - Auth base URL (e.g. http://localhost:4000)
+ *   AUTH_SERVICE_KEY        - S2S bearer token for Auth
  *   DATABASE_URL            - Synapse database connection string
  *
  * Usage:
@@ -23,16 +23,16 @@ import { providerKeyTable, userTable } from "lib/db/schema";
 
 // ---------- env validation ----------
 
-const GATEKEEPER_URL = process.env.GATEKEEPER_URL;
-const GATEKEEPER_SERVICE_KEY = process.env.GATEKEEPER_SERVICE_KEY;
+const AUTH_URL = process.env.AUTH_URL;
+const AUTH_SERVICE_KEY = process.env.AUTH_SERVICE_KEY;
 
-if (!GATEKEEPER_URL) {
-  console.error("Missing required env var: GATEKEEPER_URL");
+if (!AUTH_URL) {
+  console.error("Missing required env var: AUTH_URL");
   process.exit(1);
 }
 
-if (!GATEKEEPER_SERVICE_KEY) {
-  console.error("Missing required env var: GATEKEEPER_SERVICE_KEY");
+if (!AUTH_SERVICE_KEY) {
+  console.error("Missing required env var: AUTH_SERVICE_KEY");
   process.exit(1);
 }
 
@@ -100,7 +100,7 @@ for (const row of rows) {
     }
 
     // POST to Gatekeeper vault
-    const url = `${GATEKEEPER_URL}/api/vault/keys/${encodeURIComponent(gatekeeperUserId)}/${encodeURIComponent(row.provider)}`;
+    const url = `${AUTH_URL}/api/vault/keys/${encodeURIComponent(gatekeeperUserId)}/${encodeURIComponent(row.provider)}`;
 
     const body: Record<string, string> = { api_key: plaintext };
     if (row.modelPreference) {
@@ -111,7 +111,7 @@ for (const row of rows) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${GATEKEEPER_SERVICE_KEY}`,
+        Authorization: `Bearer ${AUTH_SERVICE_KEY}`,
       },
       body: JSON.stringify(body),
     });

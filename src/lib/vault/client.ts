@@ -1,16 +1,16 @@
 import { createHash } from "node:crypto";
 
-import { GATEKEEPER_SERVICE_KEY, GATEKEEPER_URL } from "lib/config/env.config";
+import { AUTH_SERVICE_KEY, AUTH_URL } from "lib/config/env.config";
 
 // Fixed namespace for deterministic UUID generation from provider names
 const UUID_NAMESPACE = "b8f9a3e1-7c2d-4f5e-8a1b-6d3c9e0f2a4b";
 
 /**
  * Check whether vault proxying is enabled.
- * Requires both GATEKEEPER_URL and GATEKEEPER_SERVICE_KEY to be set.
+ * Requires both AUTH_URL and AUTH_SERVICE_KEY to be set.
  */
 export const isVaultEnabled = (): boolean =>
-  Boolean(GATEKEEPER_URL && GATEKEEPER_SERVICE_KEY);
+  Boolean(AUTH_URL && AUTH_SERVICE_KEY);
 
 type VaultKeyMeta = {
   provider: string;
@@ -50,7 +50,7 @@ export const providerToUUID = (provider: string): string => {
 export const listVaultKeys = async (
   accessToken: string,
 ): Promise<VaultKeyMeta[]> => {
-  const res = await fetch(`${GATEKEEPER_URL}/api/vault/keys`, {
+  const res = await fetch(`${AUTH_URL}/api/vault/keys`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
@@ -68,7 +68,7 @@ export const setVaultKey = async (
   accessToken: string,
   params: { provider: string; key: string; modelPreference?: string },
 ): Promise<{ success: boolean; error?: string }> => {
-  const res = await fetch(`${GATEKEEPER_URL}/api/vault/keys`, {
+  const res = await fetch(`${AUTH_URL}/api/vault/keys`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -106,11 +106,11 @@ const resolveVaultKey = async (
   provider: string,
 ): Promise<ResolvedVaultKey | null> => {
   try {
-    const res = await fetch(`${GATEKEEPER_URL}/api/vault/resolve`, {
+    const res = await fetch(`${AUTH_URL}/api/vault/resolve`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${GATEKEEPER_SERVICE_KEY}`,
+        Authorization: `Bearer ${AUTH_SERVICE_KEY}`,
         "X-User-Id": userId,
       },
       body: JSON.stringify({ provider }),
@@ -147,7 +147,7 @@ export const removeVaultKey = async (
   provider: string,
 ): Promise<boolean> => {
   const res = await fetch(
-    `${GATEKEEPER_URL}/api/vault/keys/${encodeURIComponent(provider)}`,
+    `${AUTH_URL}/api/vault/keys/${encodeURIComponent(provider)}`,
     {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },

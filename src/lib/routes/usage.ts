@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import {
-  AETHER_SERVICE_API_KEY,
+  BILLING_SERVICE_API_KEY,
   AUTH_BASE_URL,
   BILLING_BASE_URL,
 } from "lib/config/env.config";
@@ -60,7 +60,7 @@ type AetherMetersResponse = {
 };
 
 const aetherHeaders = () => ({
-  "x-service-api-key": AETHER_SERVICE_API_KEY!,
+  "x-service-api-key": BILLING_SERVICE_API_KEY!,
 });
 
 /**
@@ -69,7 +69,7 @@ const aetherHeaders = () => ({
  */
 const usageRoute = new Elysia()
   .get("/usage/me", async ({ headers, set }) => {
-    if (!BILLING_BASE_URL || !AETHER_SERVICE_API_KEY) {
+    if (!BILLING_BASE_URL || !BILLING_SERVICE_API_KEY) {
       set.status = 503;
       return { error: "billing not configured" };
     }
@@ -101,7 +101,7 @@ const usageRoute = new Elysia()
     };
   })
   .get("/credits/me/balance", async ({ headers, set }) => {
-    if (!BILLING_BASE_URL || !AETHER_SERVICE_API_KEY) {
+    if (!BILLING_BASE_URL || !BILLING_SERVICE_API_KEY) {
       set.status = 503;
       return { error: "billing not configured" };
     }
@@ -130,7 +130,7 @@ const usageRoute = new Elysia()
   .post(
     "/credits/me/checkout",
     async ({ body, headers, set }) => {
-      if (!BILLING_BASE_URL || !AETHER_SERVICE_API_KEY) {
+      if (!BILLING_BASE_URL || !BILLING_SERVICE_API_KEY) {
         set.status = 503;
         return { error: "billing not configured" };
       }

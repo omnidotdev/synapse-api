@@ -17,7 +17,7 @@ export const {
   /** Billing/entitlements service base URL */
   BILLING_BASE_URL,
   /** Service API key for authenticating with Aether */
-  AETHER_SERVICE_API_KEY,
+  BILLING_SERVICE_API_KEY,
   /** Authorization PDP API URL */
   AUTHZ_API_URL,
   /** Enable authorization checks */
@@ -40,10 +40,10 @@ export const {
   VORTEX_API_URL,
   /** Vortex event streaming API key */
   VORTEX_API_KEY,
-  /** Gatekeeper base URL for vault key proxying */
-  GATEKEEPER_URL,
-  /** Service key for authenticating with Gatekeeper */
-  GATEKEEPER_SERVICE_KEY,
+  /** Auth base URL for vault key proxying */
+  AUTH_URL,
+  /** Service key for authenticating with Auth */
+  AUTH_SERVICE_KEY,
 } = process.env;
 
 export const isDevEnv = NODE_ENV === "development",
@@ -57,5 +57,5 @@ if (!AUTHZ_API_URL)
   console.warn("AUTHZ_API_URL not set, authorization disabled");
 if (!VORTEX_API_URL)
   console.warn("VORTEX_API_URL not set, event streaming disabled");
-if (!GATEKEEPER_URL)
-  console.warn("GATEKEEPER_URL not set, vault key proxying disabled");
+if (!AUTH_URL)
+  console.warn("AUTH_URL not set, vault key proxying disabled");
