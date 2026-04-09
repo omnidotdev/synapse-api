@@ -21,7 +21,7 @@ export const {
   /** Authorization PDP API URL */
   AUTHZ_API_URL,
   /** Enable authorization checks */
-  AUTHZ_ENABLED,
+
   /** Protect GraphQL routes (require authentication) */
   PROTECT_ROUTES,
   /** Secret key for encrypting provider API keys at rest */
@@ -57,5 +57,4 @@ if (!AUTHZ_API_URL)
   console.warn("AUTHZ_API_URL not set, authorization disabled");
 if (!VORTEX_API_URL)
   console.warn("VORTEX_API_URL not set, event streaming disabled");
-if (!AUTH_URL)
-  console.warn("AUTH_URL not set, vault key proxying disabled");
+if (!AUTH_URL) console.warn("AUTH_URL not set, vault key proxying disabled");

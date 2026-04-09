@@ -2,9 +2,9 @@ import { Elysia, t } from "elysia";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import {
-  BILLING_SERVICE_API_KEY,
   AUTH_BASE_URL,
   BILLING_BASE_URL,
+  BILLING_SERVICE_API_KEY,
 } from "lib/config/env.config";
 import { dbPool } from "lib/db";
 import { userTable } from "lib/db/schema";
