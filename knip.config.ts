@@ -3,9 +3,6 @@ import type { KnipConfig } from "knip";
 /**
  * Knip configuration.
  * @see https://knip.dev/overview/configuration
- *
- * NOTE: Many lib files are intentionally unused in the template.
- * They serve as reference patterns for Omni products to adopt.
  */
 const knipConfig: KnipConfig = {
   ignore: [
@@ -16,7 +13,7 @@ const knipConfig: KnipConfig = {
     "src/scripts/**",
     "src/lib/config/env.config.ts",
     "src/test/**",
-    // Reference patterns - unused in template but available for adoption
+    // reference scaffolding retained for imminent adoption
     "src/lib/cache/**",
     "src/lib/db/scoped.ts",
     "src/lib/db/dbClient.ts",
