@@ -43,7 +43,6 @@ import {
 
 // Warn if authZ is enabled but the API URL is missing (fail-open risk)
 if (!AUTHZ_API_URL) {
-  // biome-ignore lint/suspicious/noConsole: startup warning
   console.warn(
     "[AuthZ] AUTHZ_ENABLED is true but AUTHZ_API_URL is not set — authorization checks will be skipped",
   );
