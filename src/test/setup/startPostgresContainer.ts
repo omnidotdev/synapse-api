@@ -2,12 +2,12 @@
 // @see https://github.com/testcontainers/testcontainers-node/issues/807
 // The issue is marked resolved but still hangs with Bun as of testcontainers v11.11.0
 
-const CONTAINER_LABEL = "template-elysia-test";
-const CONTAINER_NAME = "template-elysia-test-postgres";
+const CONTAINER_LABEL = "synapse-api-test";
+const CONTAINER_NAME = "synapse-api-test-postgres";
 const POSTGRES_IMAGE = "postgres:16-alpine";
 const POSTGRES_USER = "test";
 const POSTGRES_PASSWORD = "test";
-const POSTGRES_DB = "template_elysia_test";
+const POSTGRES_DB = "synapse_api_test";
 const POSTGRES_PORT = "54320"; // Use non-standard port to avoid conflicts
 
 interface PostgresContainer {
