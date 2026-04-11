@@ -48,7 +48,7 @@
     "knip": "^6.4.0",
     "msw": "^2.13.2",
     "testcontainers": "^11.14.0",
-    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.29.8"
   },
   "dependencies": {
