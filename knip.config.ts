@@ -24,6 +24,7 @@ const knipConfig: KnipConfig = {
   ],
   ignoreDependencies: [
     "drizzle-kit",
+    "@changesets/cli",
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
