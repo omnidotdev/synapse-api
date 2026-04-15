@@ -79,7 +79,7 @@
     "graphql-yoga": "^5.21.0",
     "jose": "^6.2.2",
     "pg": "^8.20.0",
-    "postgraphile": "5.0.0",
+    "postgraphile": "5.0.1",
     "postgraphile-plugin-connection-filter": "3.0.0-rc.3"
   },
   "overrides": {
