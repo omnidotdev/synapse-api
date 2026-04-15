@@ -74,7 +74,7 @@
     "elysia-rate-limit": "^4.5.1",
     "grafast": "1.0.0",
     "graphile-export": "1.0.0",
-    "graphile-utils": "5.0.0",
+    "graphile-utils": "5.0.1",
     "graphql": "16.13.2",
     "graphql-yoga": "^5.21.0",
     "jose": "^6.2.2",
