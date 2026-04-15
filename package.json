@@ -72,7 +72,7 @@
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
     "elysia-rate-limit": "^4.5.1",
-    "grafast": "1.0.0",
+    "grafast": "1.0.1",
     "graphile-export": "1.0.0",
     "graphile-utils": "5.0.0",
     "graphql": "16.13.2",
@@ -84,7 +84,7 @@
   },
   "overrides": {
     "graphql": "16.13.2",
-    "grafast": "1.0.0",
+    "grafast": "1.0.1",
     "pg-sql2": "5.0.0-rc.5"
   }
 }
