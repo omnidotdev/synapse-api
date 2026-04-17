@@ -89,13 +89,17 @@ const resolveProviderKeysRoute = new Elysia().post(
 
       providerKeys = keys.flatMap((k) => {
         try {
-          return [{
-            provider: k.provider,
-            decryptedKey: decrypt(k.encryptedKey),
-            modelPreference: k.modelPreference ?? null,
-          }];
+          return [
+            {
+              provider: k.provider,
+              decryptedKey: decrypt(k.encryptedKey),
+              modelPreference: k.modelPreference ?? null,
+            },
+          ];
         } catch {
-          console.warn(`failed to decrypt provider key for ${k.provider}, skipping`);
+          console.warn(
+            `failed to decrypt provider key for ${k.provider}, skipping`,
+          );
           return [];
         }
       });
