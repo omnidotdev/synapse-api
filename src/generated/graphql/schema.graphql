@@ -57,40 +57,6 @@ type ApiKey implements Node {
   """Reads a single `User` that is related to this `ApiKey`."""
   user: User
 
-  """Reads and enables pagination through a set of `UsageEvent`."""
-  usageEvents(
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: UsageEventCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: UsageEventFilter
-
-    """The method to use when ordering `UsageEvent`."""
-    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
-  ): UsageEventConnection!
-
   """Reads and enables pagination through a set of `ApiKeyProvider`."""
   apiKeyProviders(
     """Only read the first `n` values of the set."""
@@ -124,6 +90,40 @@ type ApiKey implements Node {
     """The method to use when ordering `ApiKeyProvider`."""
     orderBy: [ApiKeyProviderOrderBy!] = [PRIMARY_KEY_ASC]
   ): ApiKeyProviderConnection!
+
+  """Reads and enables pagination through a set of `UsageEvent`."""
+  usageEvents(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UsageEventCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UsageEventFilter
+
+    """The method to use when ordering `UsageEvent`."""
+    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UsageEventConnection!
 }
 
 type User implements Node {
@@ -133,12 +133,12 @@ type User implements Node {
   id: ID!
   rowId: UUID!
   identityProviderId: UUID!
-  createdAt: Datetime
-  updatedAt: Datetime
   email: String
   name: String
   avatarUrl: String
   plan: String!
+  createdAt: Datetime
+  updatedAt: Datetime
 
   """Reads and enables pagination through a set of `ApiKey`."""
   apiKeys(
@@ -317,17 +317,17 @@ input ApiKeyFilter {
   """Filter by the object’s `keyHash` field."""
   keyHash: StringFilter
 
-  """Filter by the object’s `usageEvents` relation."""
-  usageEvents: ApiKeyToManyUsageEventFilter
-
-  """Some related `usageEvents` exist."""
-  usageEventsExist: Boolean
-
   """Filter by the object’s `apiKeyProviders` relation."""
   apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
 
   """Some related `apiKeyProviders` exist."""
   apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s `usageEvents` relation."""
+  usageEvents: ApiKeyToManyUsageEventFilter
+
+  """Some related `usageEvents` exist."""
+  usageEventsExist: Boolean
 
   """Filter by the object’s `user` relation."""
   user: UserFilter
@@ -517,9 +517,191 @@ input StringFilter {
 }
 
 """
+A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyToManyApiKeyProviderFilter {
+  """
+  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyProviderFilter {
+  """Filter by the object’s `apiKeyId` field."""
+  apiKeyId: UUIDFilter
+
+  """Filter by the object’s `providerKeyId` field."""
+  providerKeyId: UUIDFilter
+
+  """Filter by the object’s `apiKey` relation."""
+  apiKey: ApiKeyFilter
+
+  """Filter by the object’s `providerKey` relation."""
+  providerKey: ProviderKeyFilter
+
+  """Checks for all expressions in this list."""
+  and: [ApiKeyProviderFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ApiKeyProviderFilter!]
+
+  """Negates the expression."""
+  not: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `ProviderKey` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `userId` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s `provider` field."""
+  provider: StringFilter
+
+  """Filter by the object’s `apiKeyProviders` relation."""
+  apiKeyProviders: ProviderKeyToManyApiKeyProviderFilter
+
+  """Some related `apiKeyProviders` exist."""
+  apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s `user` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [ProviderKeyFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ProviderKeyFilter!]
+
+  """Negates the expression."""
+  not: ProviderKeyFilter
+}
+
+"""
+A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyToManyApiKeyProviderFilter {
+  """
+  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `User` object types. All fields are combined with a logical ‘and.’
+"""
+input UserFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `identityProviderId` field."""
+  identityProviderId: UUIDFilter
+
+  """Filter by the object’s `apiKeys` relation."""
+  apiKeys: UserToManyApiKeyFilter
+
+  """Some related `apiKeys` exist."""
+  apiKeysExist: Boolean
+
+  """Filter by the object’s `providerKeys` relation."""
+  providerKeys: UserToManyProviderKeyFilter
+
+  """Some related `providerKeys` exist."""
+  providerKeysExist: Boolean
+
+  """Filter by the object’s `usageEvents` relation."""
+  usageEvents: UserToManyUsageEventFilter
+
+  """Some related `usageEvents` exist."""
+  usageEventsExist: Boolean
+
+  """Filter by the object’s `userPreference` relation."""
+  userPreference: UserPreferenceFilter
+
+  """A related `userPreference` exists."""
+  userPreferenceExists: Boolean
+
+  """Checks for all expressions in this list."""
+  and: [UserFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UserFilter!]
+
+  """Negates the expression."""
+  not: UserFilter
+}
+
+"""
+A filter to be used against many `ApiKey` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyApiKeyFilter {
+  """
+  Every related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyFilter
+
+  """
+  Some related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyFilter
+
+  """
+  No related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyFilter
+}
+
+"""
+A filter to be used against many `ProviderKey` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyProviderKeyFilter {
+  """
+  Every related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ProviderKeyFilter
+
+  """
+  Some related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ProviderKeyFilter
+
+  """
+  No related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ProviderKeyFilter
+}
+
+"""
 A filter to be used against many `UsageEvent` object types. All fields are combined with a logical ‘and.’
 """
-input ApiKeyToManyUsageEventFilter {
+input UserToManyUsageEventFilter {
   """
   Every related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
   """
@@ -611,188 +793,6 @@ input DatetimeFilter {
 }
 
 """
-A filter to be used against `User` object types. All fields are combined with a logical ‘and.’
-"""
-input UserFilter {
-  """Filter by the object’s `rowId` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s `identityProviderId` field."""
-  identityProviderId: UUIDFilter
-
-  """Filter by the object’s `apiKeys` relation."""
-  apiKeys: UserToManyApiKeyFilter
-
-  """Some related `apiKeys` exist."""
-  apiKeysExist: Boolean
-
-  """Filter by the object’s `providerKeys` relation."""
-  providerKeys: UserToManyProviderKeyFilter
-
-  """Some related `providerKeys` exist."""
-  providerKeysExist: Boolean
-
-  """Filter by the object’s `usageEvents` relation."""
-  usageEvents: UserToManyUsageEventFilter
-
-  """Some related `usageEvents` exist."""
-  usageEventsExist: Boolean
-
-  """Filter by the object’s `userPreference` relation."""
-  userPreference: UserPreferenceFilter
-
-  """A related `userPreference` exists."""
-  userPreferenceExists: Boolean
-
-  """Checks for all expressions in this list."""
-  and: [UserFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [UserFilter!]
-
-  """Negates the expression."""
-  not: UserFilter
-}
-
-"""
-A filter to be used against many `ApiKey` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyApiKeyFilter {
-  """
-  Every related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ApiKeyFilter
-
-  """
-  Some related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ApiKeyFilter
-
-  """
-  No related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ApiKeyFilter
-}
-
-"""
-A filter to be used against many `ProviderKey` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyProviderKeyFilter {
-  """
-  Every related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ProviderKeyFilter
-
-  """
-  Some related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ProviderKeyFilter
-
-  """
-  No related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ProviderKeyFilter
-}
-
-"""
-A filter to be used against `ProviderKey` object types. All fields are combined with a logical ‘and.’
-"""
-input ProviderKeyFilter {
-  """Filter by the object’s `rowId` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s `userId` field."""
-  userId: UUIDFilter
-
-  """Filter by the object’s `provider` field."""
-  provider: StringFilter
-
-  """Filter by the object’s `apiKeyProviders` relation."""
-  apiKeyProviders: ProviderKeyToManyApiKeyProviderFilter
-
-  """Some related `apiKeyProviders` exist."""
-  apiKeyProvidersExist: Boolean
-
-  """Filter by the object’s `user` relation."""
-  user: UserFilter
-
-  """Checks for all expressions in this list."""
-  and: [ProviderKeyFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [ProviderKeyFilter!]
-
-  """Negates the expression."""
-  not: ProviderKeyFilter
-}
-
-"""
-A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
-"""
-input ProviderKeyToManyApiKeyProviderFilter {
-  """
-  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ApiKeyProviderFilter
-
-  """
-  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ApiKeyProviderFilter
-
-  """
-  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ApiKeyProviderFilter
-}
-
-"""
-A filter to be used against `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
-"""
-input ApiKeyProviderFilter {
-  """Filter by the object’s `apiKeyId` field."""
-  apiKeyId: UUIDFilter
-
-  """Filter by the object’s `providerKeyId` field."""
-  providerKeyId: UUIDFilter
-
-  """Filter by the object’s `apiKey` relation."""
-  apiKey: ApiKeyFilter
-
-  """Filter by the object’s `providerKey` relation."""
-  providerKey: ProviderKeyFilter
-
-  """Checks for all expressions in this list."""
-  and: [ApiKeyProviderFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [ApiKeyProviderFilter!]
-
-  """Negates the expression."""
-  not: ApiKeyProviderFilter
-}
-
-"""
-A filter to be used against many `UsageEvent` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyUsageEventFilter {
-  """
-  Every related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: UsageEventFilter
-
-  """
-  Some related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: UsageEventFilter
-
-  """
-  No related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: UsageEventFilter
-}
-
-"""
 A filter to be used against `UserPreference` object types. All fields are combined with a logical ‘and.’
 """
 input UserPreferenceFilter {
@@ -816,23 +816,23 @@ input UserPreferenceFilter {
 }
 
 """
-A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+A filter to be used against many `UsageEvent` object types. All fields are combined with a logical ‘and.’
 """
-input ApiKeyToManyApiKeyProviderFilter {
+input ApiKeyToManyUsageEventFilter {
   """
-  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  Every related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
   """
-  every: ApiKeyProviderFilter
+  every: UsageEventFilter
 
   """
-  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  Some related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
   """
-  some: ApiKeyProviderFilter
+  some: UsageEventFilter
 
   """
-  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  No related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
   """
-  none: ApiKeyProviderFilter
+  none: UsageEventFilter
 }
 
 """Methods to use when ordering `ApiKey`."""
@@ -875,9 +875,9 @@ type ProviderKey implements Node {
   provider: String!
   encryptedKey: String!
   keyHint: String!
+  modelPreference: String
   createdAt: Datetime
   updatedAt: Datetime
-  modelPreference: String
 
   """Reads a single `User` that is related to this `ProviderKey`."""
   user: User
@@ -1290,1241 +1290,6 @@ enum UserOrderBy {
   IDENTITY_PROVIDER_ID_DESC
 }
 
-"""The output of our create `ApiKeyProvider` mutation."""
-type CreateApiKeyProviderPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKeyProvider` that was created by this mutation."""
-  apiKeyProvider: ApiKeyProvider
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKeyProvider`. May be used by Relay 1."""
-  apiKeyProviderEdge(
-    """The method to use when ordering `ApiKeyProvider`."""
-    orderBy: [ApiKeyProviderOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyProviderEdge
-}
-
-"""All input for the create `ApiKeyProvider` mutation."""
-input CreateApiKeyProviderInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `ApiKeyProvider` to be created by this mutation."""
-  apiKeyProvider: ApiKeyProviderInput!
-}
-
-"""An input for mutations affecting `ApiKeyProvider`"""
-input ApiKeyProviderInput {
-  apiKeyId: UUID!
-  providerKeyId: UUID!
-  createdAt: Datetime
-}
-
-"""The output of our create `Workspace` mutation."""
-type CreateWorkspacePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `Workspace` that was created by this mutation."""
-  workspace: Workspace
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `Workspace`. May be used by Relay 1."""
-  workspaceEdge(
-    """The method to use when ordering `Workspace`."""
-    orderBy: [WorkspaceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): WorkspaceEdge
-}
-
-"""All input for the create `Workspace` mutation."""
-input CreateWorkspaceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `Workspace` to be created by this mutation."""
-  workspace: WorkspaceInput!
-}
-
-"""An input for mutations affecting `Workspace`"""
-input WorkspaceInput {
-  rowId: UUID
-  organizationId: UUID!
-  slug: String!
-  name: String!
-  description: String
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
-"""The output of our create `UserPreference` mutation."""
-type CreateUserPreferencePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UserPreference` that was created by this mutation."""
-  userPreference: UserPreference
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UserPreference`. May be used by Relay 1."""
-  userPreferenceEdge(
-    """The method to use when ordering `UserPreference`."""
-    orderBy: [UserPreferenceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserPreferenceEdge
-}
-
-"""All input for the create `UserPreference` mutation."""
-input CreateUserPreferenceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `UserPreference` to be created by this mutation."""
-  userPreference: UserPreferenceInput!
-}
-
-"""An input for mutations affecting `UserPreference`"""
-input UserPreferenceInput {
-  rowId: UUID
-  userId: UUID!
-  defaultProvider: String
-  notifyUsageThreshold: Boolean
-  notifyKeyExpiry: Boolean
-  updatedAt: Datetime
-}
-
-"""The output of our create `User` mutation."""
-type CreateUserPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `User` that was created by this mutation."""
-  user: User
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `User`. May be used by Relay 1."""
-  userEdge(
-    """The method to use when ordering `User`."""
-    orderBy: [UserOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserEdge
-}
-
-"""All input for the create `User` mutation."""
-input CreateUserInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `User` to be created by this mutation."""
-  user: UserInput!
-}
-
-"""An input for mutations affecting `User`"""
-input UserInput {
-  rowId: UUID
-  identityProviderId: UUID!
-  createdAt: Datetime
-  updatedAt: Datetime
-  email: String
-  name: String
-  avatarUrl: String
-  plan: String
-}
-
-"""The output of our create `ProviderKey` mutation."""
-type CreateProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was created by this mutation."""
-  providerKey: ProviderKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the create `ProviderKey` mutation."""
-input CreateProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` to be created by this mutation."""
-  providerKey: ProviderKeyInput!
-}
-
-"""An input for mutations affecting `ProviderKey`"""
-input ProviderKeyInput {
-  rowId: UUID
-  userId: UUID!
-  provider: String!
-  encryptedKey: String!
-  keyHint: String!
-  createdAt: Datetime
-  updatedAt: Datetime
-  modelPreference: String
-}
-
-"""The output of our create `ApiKey` mutation."""
-type CreateApiKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKey` that was created by this mutation."""
-  apiKey: ApiKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKey`. May be used by Relay 1."""
-  apiKeyEdge(
-    """The method to use when ordering `ApiKey`."""
-    orderBy: [ApiKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyEdge
-}
-
-"""All input for the create `ApiKey` mutation."""
-input CreateApiKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `ApiKey` to be created by this mutation."""
-  apiKey: ApiKeyInput!
-}
-
-"""An input for mutations affecting `ApiKey`"""
-input ApiKeyInput {
-  rowId: UUID
-  userId: UUID!
-  workspaceId: UUID
-  keyHash: String!
-  keyHint: String!
-  name: String!
-  mode: String
-  lastUsedAt: Datetime
-  expiresAt: Datetime
-  revokedAt: Datetime
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
-"""The output of our create `UsageEvent` mutation."""
-type CreateUsageEventPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UsageEvent` that was created by this mutation."""
-  usageEvent: UsageEvent
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UsageEvent`. May be used by Relay 1."""
-  usageEventEdge(
-    """The method to use when ordering `UsageEvent`."""
-    orderBy: [UsageEventOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UsageEventEdge
-}
-
-"""All input for the create `UsageEvent` mutation."""
-input CreateUsageEventInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """The `UsageEvent` to be created by this mutation."""
-  usageEvent: UsageEventInput!
-}
-
-"""An input for mutations affecting `UsageEvent`"""
-input UsageEventInput {
-  rowId: UUID
-  userId: UUID!
-  workspaceId: UUID
-  apiKeyId: UUID!
-  provider: String!
-  model: String!
-  inputTokens: Int
-  outputTokens: Int
-  costCents: Int
-  mode: String!
-  createdAt: Datetime
-}
-
-"""The output of our update `ApiKeyProvider` mutation."""
-type UpdateApiKeyProviderPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKeyProvider` that was updated by this mutation."""
-  apiKeyProvider: ApiKeyProvider
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKeyProvider`. May be used by Relay 1."""
-  apiKeyProviderEdge(
-    """The method to use when ordering `ApiKeyProvider`."""
-    orderBy: [ApiKeyProviderOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyProviderEdge
-}
-
-"""All input for the `updateApiKeyProviderById` mutation."""
-input UpdateApiKeyProviderByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ApiKeyProvider` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `ApiKeyProvider` being updated.
-  """
-  patch: ApiKeyProviderPatch!
-}
-
-"""
-Represents an update to a `ApiKeyProvider`. Fields that are set will be updated.
-"""
-input ApiKeyProviderPatch {
-  apiKeyId: UUID
-  providerKeyId: UUID
-  createdAt: Datetime
-}
-
-"""All input for the `updateApiKeyProvider` mutation."""
-input UpdateApiKeyProviderInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  apiKeyId: UUID!
-  providerKeyId: UUID!
-
-  """
-  An object where the defined keys will be set on the `ApiKeyProvider` being updated.
-  """
-  patch: ApiKeyProviderPatch!
-}
-
-"""The output of our update `Workspace` mutation."""
-type UpdateWorkspacePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `Workspace` that was updated by this mutation."""
-  workspace: Workspace
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `Workspace`. May be used by Relay 1."""
-  workspaceEdge(
-    """The method to use when ordering `Workspace`."""
-    orderBy: [WorkspaceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): WorkspaceEdge
-}
-
-"""All input for the `updateWorkspaceById` mutation."""
-input UpdateWorkspaceByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `Workspace` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `Workspace` being updated.
-  """
-  patch: WorkspacePatch!
-}
-
-"""
-Represents an update to a `Workspace`. Fields that are set will be updated.
-"""
-input WorkspacePatch {
-  rowId: UUID
-  organizationId: UUID
-  slug: String
-  name: String
-  description: String
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
-"""All input for the `updateWorkspace` mutation."""
-input UpdateWorkspaceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `Workspace` being updated.
-  """
-  patch: WorkspacePatch!
-}
-
-"""The output of our update `UserPreference` mutation."""
-type UpdateUserPreferencePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UserPreference` that was updated by this mutation."""
-  userPreference: UserPreference
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UserPreference`. May be used by Relay 1."""
-  userPreferenceEdge(
-    """The method to use when ordering `UserPreference`."""
-    orderBy: [UserPreferenceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserPreferenceEdge
-}
-
-"""All input for the `updateUserPreferenceById` mutation."""
-input UpdateUserPreferenceByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `UserPreference` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `UserPreference` being updated.
-  """
-  patch: UserPreferencePatch!
-}
-
-"""
-Represents an update to a `UserPreference`. Fields that are set will be updated.
-"""
-input UserPreferencePatch {
-  rowId: UUID
-  userId: UUID
-  defaultProvider: String
-  notifyUsageThreshold: Boolean
-  notifyKeyExpiry: Boolean
-  updatedAt: Datetime
-}
-
-"""All input for the `updateUserPreference` mutation."""
-input UpdateUserPreferenceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `UserPreference` being updated.
-  """
-  patch: UserPreferencePatch!
-}
-
-"""All input for the `updateUserPreferenceByUserId` mutation."""
-input UpdateUserPreferenceByUserIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  userId: UUID!
-
-  """
-  An object where the defined keys will be set on the `UserPreference` being updated.
-  """
-  patch: UserPreferencePatch!
-}
-
-"""The output of our update `User` mutation."""
-type UpdateUserPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `User` that was updated by this mutation."""
-  user: User
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `User`. May be used by Relay 1."""
-  userEdge(
-    """The method to use when ordering `User`."""
-    orderBy: [UserOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserEdge
-}
-
-"""All input for the `updateUserById` mutation."""
-input UpdateUserByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `User` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `User` being updated.
-  """
-  patch: UserPatch!
-}
-
-"""Represents an update to a `User`. Fields that are set will be updated."""
-input UserPatch {
-  rowId: UUID
-  identityProviderId: UUID
-  createdAt: Datetime
-  updatedAt: Datetime
-  email: String
-  name: String
-  avatarUrl: String
-  plan: String
-}
-
-"""All input for the `updateUser` mutation."""
-input UpdateUserInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `User` being updated.
-  """
-  patch: UserPatch!
-}
-
-"""All input for the `updateUserByIdentityProviderId` mutation."""
-input UpdateUserByIdentityProviderIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  identityProviderId: UUID!
-
-  """
-  An object where the defined keys will be set on the `User` being updated.
-  """
-  patch: UserPatch!
-}
-
-"""The output of our update `ProviderKey` mutation."""
-type UpdateProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was updated by this mutation."""
-  providerKey: ProviderKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the `updateProviderKeyById` mutation."""
-input UpdateProviderKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ProviderKey` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `ProviderKey` being updated.
-  """
-  patch: ProviderKeyPatch!
-}
-
-"""
-Represents an update to a `ProviderKey`. Fields that are set will be updated.
-"""
-input ProviderKeyPatch {
-  rowId: UUID
-  userId: UUID
-  provider: String
-  encryptedKey: String
-  keyHint: String
-  createdAt: Datetime
-  updatedAt: Datetime
-  modelPreference: String
-}
-
-"""All input for the `updateProviderKey` mutation."""
-input UpdateProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `ProviderKey` being updated.
-  """
-  patch: ProviderKeyPatch!
-}
-
-"""The output of our update `ApiKey` mutation."""
-type UpdateApiKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKey` that was updated by this mutation."""
-  apiKey: ApiKey
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKey`. May be used by Relay 1."""
-  apiKeyEdge(
-    """The method to use when ordering `ApiKey`."""
-    orderBy: [ApiKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyEdge
-}
-
-"""All input for the `updateApiKeyById` mutation."""
-input UpdateApiKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ApiKey` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `ApiKey` being updated.
-  """
-  patch: ApiKeyPatch!
-}
-
-"""
-Represents an update to a `ApiKey`. Fields that are set will be updated.
-"""
-input ApiKeyPatch {
-  rowId: UUID
-  userId: UUID
-  workspaceId: UUID
-  keyHash: String
-  keyHint: String
-  name: String
-  mode: String
-  lastUsedAt: Datetime
-  expiresAt: Datetime
-  revokedAt: Datetime
-  createdAt: Datetime
-  updatedAt: Datetime
-}
-
-"""All input for the `updateApiKey` mutation."""
-input UpdateApiKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `ApiKey` being updated.
-  """
-  patch: ApiKeyPatch!
-}
-
-"""All input for the `updateApiKeyByKeyHash` mutation."""
-input UpdateApiKeyByKeyHashInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  keyHash: String!
-
-  """
-  An object where the defined keys will be set on the `ApiKey` being updated.
-  """
-  patch: ApiKeyPatch!
-}
-
-"""The output of our update `UsageEvent` mutation."""
-type UpdateUsageEventPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UsageEvent` that was updated by this mutation."""
-  usageEvent: UsageEvent
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UsageEvent`. May be used by Relay 1."""
-  usageEventEdge(
-    """The method to use when ordering `UsageEvent`."""
-    orderBy: [UsageEventOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UsageEventEdge
-}
-
-"""All input for the `updateUsageEventById` mutation."""
-input UpdateUsageEventByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `UsageEvent` to be updated.
-  """
-  id: ID!
-
-  """
-  An object where the defined keys will be set on the `UsageEvent` being updated.
-  """
-  patch: UsageEventPatch!
-}
-
-"""
-Represents an update to a `UsageEvent`. Fields that are set will be updated.
-"""
-input UsageEventPatch {
-  rowId: UUID
-  userId: UUID
-  workspaceId: UUID
-  apiKeyId: UUID
-  provider: String
-  model: String
-  inputTokens: Int
-  outputTokens: Int
-  costCents: Int
-  mode: String
-  createdAt: Datetime
-}
-
-"""All input for the `updateUsageEvent` mutation."""
-input UpdateUsageEventInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-
-  """
-  An object where the defined keys will be set on the `UsageEvent` being updated.
-  """
-  patch: UsageEventPatch!
-}
-
-"""The output of our delete `ApiKeyProvider` mutation."""
-type DeleteApiKeyProviderPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKeyProvider` that was deleted by this mutation."""
-  apiKeyProvider: ApiKeyProvider
-  deletedApiKeyProviderId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKeyProvider`. May be used by Relay 1."""
-  apiKeyProviderEdge(
-    """The method to use when ordering `ApiKeyProvider`."""
-    orderBy: [ApiKeyProviderOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyProviderEdge
-}
-
-"""All input for the `deleteApiKeyProviderById` mutation."""
-input DeleteApiKeyProviderByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ApiKeyProvider` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteApiKeyProvider` mutation."""
-input DeleteApiKeyProviderInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  apiKeyId: UUID!
-  providerKeyId: UUID!
-}
-
-"""The output of our delete `Workspace` mutation."""
-type DeleteWorkspacePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `Workspace` that was deleted by this mutation."""
-  workspace: Workspace
-  deletedWorkspaceId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `Workspace`. May be used by Relay 1."""
-  workspaceEdge(
-    """The method to use when ordering `Workspace`."""
-    orderBy: [WorkspaceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): WorkspaceEdge
-}
-
-"""All input for the `deleteWorkspaceById` mutation."""
-input DeleteWorkspaceByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `Workspace` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteWorkspace` mutation."""
-input DeleteWorkspaceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
-"""The output of our delete `UserPreference` mutation."""
-type DeleteUserPreferencePayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UserPreference` that was deleted by this mutation."""
-  userPreference: UserPreference
-  deletedUserPreferenceId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UserPreference`. May be used by Relay 1."""
-  userPreferenceEdge(
-    """The method to use when ordering `UserPreference`."""
-    orderBy: [UserPreferenceOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserPreferenceEdge
-}
-
-"""All input for the `deleteUserPreferenceById` mutation."""
-input DeleteUserPreferenceByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `UserPreference` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteUserPreference` mutation."""
-input DeleteUserPreferenceInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
-"""All input for the `deleteUserPreferenceByUserId` mutation."""
-input DeleteUserPreferenceByUserIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  userId: UUID!
-}
-
-"""The output of our delete `User` mutation."""
-type DeleteUserPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `User` that was deleted by this mutation."""
-  user: User
-  deletedUserId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `User`. May be used by Relay 1."""
-  userEdge(
-    """The method to use when ordering `User`."""
-    orderBy: [UserOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UserEdge
-}
-
-"""All input for the `deleteUserById` mutation."""
-input DeleteUserByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `User` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteUser` mutation."""
-input DeleteUserInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
-"""All input for the `deleteUserByIdentityProviderId` mutation."""
-input DeleteUserByIdentityProviderIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  identityProviderId: UUID!
-}
-
-"""The output of our delete `ProviderKey` mutation."""
-type DeleteProviderKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ProviderKey` that was deleted by this mutation."""
-  providerKey: ProviderKey
-  deletedProviderKeyId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ProviderKey`. May be used by Relay 1."""
-  providerKeyEdge(
-    """The method to use when ordering `ProviderKey`."""
-    orderBy: [ProviderKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ProviderKeyEdge
-}
-
-"""All input for the `deleteProviderKeyById` mutation."""
-input DeleteProviderKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ProviderKey` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteProviderKey` mutation."""
-input DeleteProviderKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
-"""The output of our delete `ApiKey` mutation."""
-type DeleteApiKeyPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `ApiKey` that was deleted by this mutation."""
-  apiKey: ApiKey
-  deletedApiKeyId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `ApiKey`. May be used by Relay 1."""
-  apiKeyEdge(
-    """The method to use when ordering `ApiKey`."""
-    orderBy: [ApiKeyOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): ApiKeyEdge
-}
-
-"""All input for the `deleteApiKeyById` mutation."""
-input DeleteApiKeyByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `ApiKey` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteApiKey` mutation."""
-input DeleteApiKeyInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
-"""All input for the `deleteApiKeyByKeyHash` mutation."""
-input DeleteApiKeyByKeyHashInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  keyHash: String!
-}
-
-"""The output of our delete `UsageEvent` mutation."""
-type DeleteUsageEventPayload {
-  """
-  The exact same `clientMutationId` that was provided in the mutation input,
-  unchanged and unused. May be used by a client to track mutations.
-  """
-  clientMutationId: String
-
-  """The `UsageEvent` that was deleted by this mutation."""
-  usageEvent: UsageEvent
-  deletedUsageEventId: ID
-
-  """
-  Our root query field type. Allows us to run any query from our mutation payload.
-  """
-  query: Query
-
-  """An edge for our `UsageEvent`. May be used by Relay 1."""
-  usageEventEdge(
-    """The method to use when ordering `UsageEvent`."""
-    orderBy: [UsageEventOrderBy!]! = [PRIMARY_KEY_ASC]
-  ): UsageEventEdge
-}
-
-"""All input for the `deleteUsageEventById` mutation."""
-input DeleteUsageEventByIdInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-
-  """
-  The globally unique `ID` which will identify a single `UsageEvent` to be deleted.
-  """
-  id: ID!
-}
-
-"""All input for the `deleteUsageEvent` mutation."""
-input DeleteUsageEventInput {
-  """
-  An arbitrary string value with no semantic meaning. Will be included in the
-  payload verbatim. May be used to track mutations by the client.
-  """
-  clientMutationId: String
-  rowId: UUID!
-}
-
 type Observer {
   id: UUID!
   name: String!
@@ -2554,6 +1319,12 @@ type GenerateApiKeyPayload {
   keyHint: String!
 }
 
+type LinkedProviderInfo {
+  id: UUID!
+  provider: String!
+  keyHint: String!
+}
+
 type ApiKeyInfo {
   id: UUID!
   name: String!
@@ -2563,6 +1334,7 @@ type ApiKeyInfo {
   lastUsedAt: Datetime
   expiresAt: Datetime
   revokedAt: Datetime
+  linkedProviders: [LinkedProviderInfo!]!
 }
 
 input UpdateUserPreferencesInput {
@@ -2580,14 +1352,12 @@ type UserPreferences {
 input SetProviderKeyInput {
   provider: String!
   key: String!
-  modelPreference: String
 }
 
 type ProviderKeyInfo {
   id: UUID!
   userId: UUID!
   provider: String!
-  encryptedKey: String!
   keyHint: String!
   createdAt: Datetime
   updatedAt: Datetime
@@ -2645,14 +1415,14 @@ type Query implements Node {
   """Get a single `UserPreference`."""
   userPreferenceByUserId(userId: UUID!): UserPreference
 
+  """Get a single `ProviderKey`."""
+  providerKey(rowId: UUID!): ProviderKey
+
   """Get a single `User`."""
   user(rowId: UUID!): User
 
   """Get a single `User`."""
   userByIdentityProviderId(identityProviderId: UUID!): User
-
-  """Get a single `ProviderKey`."""
-  providerKey(rowId: UUID!): ProviderKey
 
   """Get a single `ApiKey`."""
   apiKey(rowId: UUID!): ApiKey
@@ -2685,12 +1455,6 @@ type Query implements Node {
     id: ID!
   ): UserPreference
 
-  """Reads a single `User` using its globally unique `ID`."""
-  userById(
-    """The globally unique `ID` to be used in selecting a single `User`."""
-    id: ID!
-  ): User
-
   """Reads a single `ProviderKey` using its globally unique `ID`."""
   providerKeyById(
     """
@@ -2698,6 +1462,12 @@ type Query implements Node {
     """
     id: ID!
   ): ProviderKey
+
+  """Reads a single `User` using its globally unique `ID`."""
+  userById(
+    """The globally unique `ID` to be used in selecting a single `User`."""
+    id: ID!
+  ): User
 
   """Reads a single `ApiKey` using its globally unique `ID`."""
   apiKeyById(
@@ -2815,40 +1585,6 @@ type Query implements Node {
     orderBy: [UserPreferenceOrderBy!] = [PRIMARY_KEY_ASC]
   ): UserPreferenceConnection
 
-  """Reads and enables pagination through a set of `User`."""
-  users(
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: UserCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: UserFilter
-
-    """The method to use when ordering `User`."""
-    orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
-  ): UserConnection
-
   """Reads and enables pagination through a set of `ProviderKey`."""
   providerKeys(
     """Only read the first `n` values of the set."""
@@ -2882,6 +1618,40 @@ type Query implements Node {
     """The method to use when ordering `ProviderKey`."""
     orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
   ): ProviderKeyConnection
+
+  """Reads and enables pagination through a set of `User`."""
+  users(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UserCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UserFilter
+
+    """The method to use when ordering `User`."""
+    orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UserConnection
 
   """Reads and enables pagination through a set of `ApiKey`."""
   apiKeys(
@@ -2968,342 +1738,6 @@ type Query implements Node {
 The root mutation type which contains root level fields which mutate data.
 """
 type Mutation {
-  """Creates a single `ApiKeyProvider`."""
-  createApiKeyProvider(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateApiKeyProviderInput!
-  ): CreateApiKeyProviderPayload
-
-  """Creates a single `Workspace`."""
-  createWorkspace(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateWorkspaceInput!
-  ): CreateWorkspacePayload
-
-  """Creates a single `UserPreference`."""
-  createUserPreference(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateUserPreferenceInput!
-  ): CreateUserPreferencePayload
-
-  """Creates a single `User`."""
-  createUser(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateUserInput!
-  ): CreateUserPayload
-
-  """Creates a single `ProviderKey`."""
-  createProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateProviderKeyInput!
-  ): CreateProviderKeyPayload
-
-  """Creates a single `ApiKey`."""
-  createApiKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateApiKeyInput!
-  ): CreateApiKeyPayload
-
-  """Creates a single `UsageEvent`."""
-  createUsageEvent(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: CreateUsageEventInput!
-  ): CreateUsageEventPayload
-
-  """
-  Updates a single `ApiKeyProvider` using its globally unique id and a patch.
-  """
-  updateApiKeyProviderById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateApiKeyProviderByIdInput!
-  ): UpdateApiKeyProviderPayload
-
-  """Updates a single `ApiKeyProvider` using a unique key and a patch."""
-  updateApiKeyProvider(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateApiKeyProviderInput!
-  ): UpdateApiKeyProviderPayload
-
-  """Updates a single `Workspace` using its globally unique id and a patch."""
-  updateWorkspaceById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateWorkspaceByIdInput!
-  ): UpdateWorkspacePayload
-
-  """Updates a single `Workspace` using a unique key and a patch."""
-  updateWorkspace(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateWorkspaceInput!
-  ): UpdateWorkspacePayload
-
-  """
-  Updates a single `UserPreference` using its globally unique id and a patch.
-  """
-  updateUserPreferenceById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserPreferenceByIdInput!
-  ): UpdateUserPreferencePayload
-
-  """Updates a single `UserPreference` using a unique key and a patch."""
-  updateUserPreference(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserPreferenceInput!
-  ): UpdateUserPreferencePayload
-
-  """Updates a single `UserPreference` using a unique key and a patch."""
-  updateUserPreferenceByUserId(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserPreferenceByUserIdInput!
-  ): UpdateUserPreferencePayload
-
-  """Updates a single `User` using its globally unique id and a patch."""
-  updateUserById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserByIdInput!
-  ): UpdateUserPayload
-
-  """Updates a single `User` using a unique key and a patch."""
-  updateUser(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserInput!
-  ): UpdateUserPayload
-
-  """Updates a single `User` using a unique key and a patch."""
-  updateUserByIdentityProviderId(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserByIdentityProviderIdInput!
-  ): UpdateUserPayload
-
-  """
-  Updates a single `ProviderKey` using its globally unique id and a patch.
-  """
-  updateProviderKeyById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateProviderKeyByIdInput!
-  ): UpdateProviderKeyPayload
-
-  """Updates a single `ProviderKey` using a unique key and a patch."""
-  updateProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateProviderKeyInput!
-  ): UpdateProviderKeyPayload
-
-  """Updates a single `ApiKey` using its globally unique id and a patch."""
-  updateApiKeyById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateApiKeyByIdInput!
-  ): UpdateApiKeyPayload
-
-  """Updates a single `ApiKey` using a unique key and a patch."""
-  updateApiKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateApiKeyInput!
-  ): UpdateApiKeyPayload
-
-  """Updates a single `ApiKey` using a unique key and a patch."""
-  updateApiKeyByKeyHash(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateApiKeyByKeyHashInput!
-  ): UpdateApiKeyPayload
-
-  """
-  Updates a single `UsageEvent` using its globally unique id and a patch.
-  """
-  updateUsageEventById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUsageEventByIdInput!
-  ): UpdateUsageEventPayload
-
-  """Updates a single `UsageEvent` using a unique key and a patch."""
-  updateUsageEvent(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUsageEventInput!
-  ): UpdateUsageEventPayload
-
-  """Deletes a single `ApiKeyProvider` using its globally unique id."""
-  deleteApiKeyProviderById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteApiKeyProviderByIdInput!
-  ): DeleteApiKeyProviderPayload
-
-  """Deletes a single `ApiKeyProvider` using a unique key."""
-  deleteApiKeyProvider(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteApiKeyProviderInput!
-  ): DeleteApiKeyProviderPayload
-
-  """Deletes a single `Workspace` using its globally unique id."""
-  deleteWorkspaceById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteWorkspaceByIdInput!
-  ): DeleteWorkspacePayload
-
-  """Deletes a single `Workspace` using a unique key."""
-  deleteWorkspace(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteWorkspaceInput!
-  ): DeleteWorkspacePayload
-
-  """Deletes a single `UserPreference` using its globally unique id."""
-  deleteUserPreferenceById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserPreferenceByIdInput!
-  ): DeleteUserPreferencePayload
-
-  """Deletes a single `UserPreference` using a unique key."""
-  deleteUserPreference(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserPreferenceInput!
-  ): DeleteUserPreferencePayload
-
-  """Deletes a single `UserPreference` using a unique key."""
-  deleteUserPreferenceByUserId(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserPreferenceByUserIdInput!
-  ): DeleteUserPreferencePayload
-
-  """Deletes a single `User` using its globally unique id."""
-  deleteUserById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserByIdInput!
-  ): DeleteUserPayload
-
-  """Deletes a single `User` using a unique key."""
-  deleteUser(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserInput!
-  ): DeleteUserPayload
-
-  """Deletes a single `User` using a unique key."""
-  deleteUserByIdentityProviderId(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUserByIdentityProviderIdInput!
-  ): DeleteUserPayload
-
-  """Deletes a single `ProviderKey` using its globally unique id."""
-  deleteProviderKeyById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteProviderKeyByIdInput!
-  ): DeleteProviderKeyPayload
-
-  """Deletes a single `ProviderKey` using a unique key."""
-  deleteProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteProviderKeyInput!
-  ): DeleteProviderKeyPayload
-
-  """Deletes a single `ApiKey` using its globally unique id."""
-  deleteApiKeyById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteApiKeyByIdInput!
-  ): DeleteApiKeyPayload
-
-  """Deletes a single `ApiKey` using a unique key."""
-  deleteApiKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteApiKeyInput!
-  ): DeleteApiKeyPayload
-
-  """Deletes a single `ApiKey` using a unique key."""
-  deleteApiKeyByKeyHash(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteApiKeyByKeyHashInput!
-  ): DeleteApiKeyPayload
-
-  """Deletes a single `UsageEvent` using its globally unique id."""
-  deleteUsageEventById(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUsageEventByIdInput!
-  ): DeleteUsageEventPayload
-
-  """Deletes a single `UsageEvent` using a unique key."""
-  deleteUsageEvent(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: DeleteUsageEventInput!
-  ): DeleteUsageEventPayload
-
   """Generate a new API key. The raw key is returned once and never stored."""
   generateApiKey(
     """
@@ -3314,6 +1748,12 @@ type Mutation {
 
   """Revoke an API key by setting its revokedAt timestamp."""
   revokeApiKey(id: UUID!): Boolean
+
+  """Link a provider key to an API key so requests use that provider."""
+  linkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
+
+  """Unlink a provider key from an API key."""
+  unlinkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
 
   """Update user preferences. Creates preferences row if it doesn't exist."""
   updateUserPreferences(

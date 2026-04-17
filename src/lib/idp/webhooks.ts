@@ -104,8 +104,6 @@ const idpWebhook = new Elysia().post(
   "/idp",
   async ({ request, headers, set }) => {
     const signature = headers["x-idp-signature"];
-    const eventType = headers["x-idp-event"];
-
     if (!AUTH_WEBHOOK_SECRET) {
       set.status = 503;
       return { error: "Webhook handler not configured" };

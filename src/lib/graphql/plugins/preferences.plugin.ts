@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
@@ -42,99 +43,120 @@ const preferencesPlugin = makeExtendSchemaPlugin({
   `,
   resolvers: {
     Observer: {
-      async preferences(
-        observer: { id: string },
-        _args: Record<string, never>,
-        ctx: GraphQLContext,
-      ) {
-        const { db } = ctx;
+      preferences: EXPORTABLE(
+        (userPreferenceTable, eq) =>
+          async function preferences(
+            observer: { id: string },
+            _args: Record<string, never>,
+            ctx: GraphQLContext,
+          ) {
+            const { db } = ctx;
 
-        const [prefs] = await db
-          .select()
-          .from(userPreferenceTable)
-          .where(eq(userPreferenceTable.userId, observer.id))
-          .limit(1);
+            const [prefs] = await db
+              .select()
+              .from(userPreferenceTable)
+              .where(eq(userPreferenceTable.userId, observer.id))
+              .limit(1);
 
-        return (
-          prefs ?? {
-            defaultProvider: null,
-            notifyUsageThreshold: true,
-            notifyKeyExpiry: true,
-          }
-        );
-      },
+            return (
+              prefs ?? {
+                defaultProvider: null,
+                notifyUsageThreshold: true,
+                notifyKeyExpiry: true,
+              }
+            );
+          },
+        [userPreferenceTable, eq],
+      ),
     },
     Mutation: {
-      async updateUserPreferences(
-        _source: unknown,
-        args: {
-          input: {
-            defaultProvider?: string;
-            notifyUsageThreshold?: boolean;
-            notifyKeyExpiry?: boolean;
-          };
-        },
-        ctx: GraphQLContext,
-      ) {
-        const { observer, db } = ctx;
+      updateUserPreferences: EXPORTABLE(
+        (GraphQLError, userPreferenceTable, publish, events) =>
+          async function updateUserPreferences(
+            _source: unknown,
+            args: {
+              input: {
+                defaultProvider?: string;
+                notifyUsageThreshold?: boolean;
+                notifyKeyExpiry?: boolean;
+              };
+            },
+            ctx: GraphQLContext,
+          ) {
+            const { observer, db } = ctx;
 
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+            if (!observer) {
+              throw new GraphQLError("Authentication required", {
+                extensions: { code: "UNAUTHENTICATED" },
+              });
+            }
 
-        const { defaultProvider, notifyUsageThreshold, notifyKeyExpiry } =
-          args.input;
+            const { defaultProvider, notifyUsageThreshold, notifyKeyExpiry } =
+              args.input;
 
-        const VALID_PROVIDERS = ["", "anthropic", "openai", "google", "nvidia", "groq", "mistral"];
-        if (defaultProvider !== undefined && !VALID_PROVIDERS.includes(defaultProvider)) {
-          throw new GraphQLError(
-            `Invalid provider. Must be one of: ${VALID_PROVIDERS.filter(Boolean).join(", ")}`,
-            { extensions: { code: "BAD_USER_INPUT" } },
-          );
-        }
+            const VALID_PROVIDERS = [
+              "",
+              "anthropic",
+              "openai",
+              "google",
+              "nvidia",
+              "groq",
+              "mistral",
+            ];
+            if (
+              defaultProvider !== undefined &&
+              !VALID_PROVIDERS.includes(defaultProvider)
+            ) {
+              throw new GraphQLError(
+                `Invalid provider. Must be one of: ${VALID_PROVIDERS.filter(Boolean).join(", ")}`,
+                { extensions: { code: "BAD_USER_INPUT" } },
+              );
+            }
 
-        const values: InsertUserPreference = {
-          userId: observer.id,
-          updatedAt: new Date().toISOString(),
-          ...(defaultProvider !== undefined && { defaultProvider }),
-          ...(notifyUsageThreshold !== undefined && { notifyUsageThreshold }),
-          ...(notifyKeyExpiry !== undefined && { notifyKeyExpiry }),
-        };
-
-        const [prefs] = await db
-          .insert(userPreferenceTable)
-          .values(values)
-          .onConflictDoUpdate({
-            target: userPreferenceTable.userId,
-            set: {
+            const values: InsertUserPreference = {
+              userId: observer.id,
+              updatedAt: new Date().toISOString(),
               ...(defaultProvider !== undefined && { defaultProvider }),
               ...(notifyUsageThreshold !== undefined && {
                 notifyUsageThreshold,
               }),
               ...(notifyKeyExpiry !== undefined && { notifyKeyExpiry }),
-              updatedAt: new Date().toISOString(),
-            },
-          })
-          .returning();
+            };
 
-        void publish({
-          type: "synapse.preferences.updated",
-          source: "omni.synapse",
-          organizationId: observer.id,
-          subject: observer.id,
-          data: { userId: observer.id, ...args.input },
-        });
-        void events.emit({
-          type: "synapse.preferences.updated",
-          data: { userId: observer.id, ...args.input },
-          organizationId: observer.id,
-          subject: observer.id,
-        });
+            const [prefs] = await db
+              .insert(userPreferenceTable)
+              .values(values)
+              .onConflictDoUpdate({
+                target: userPreferenceTable.userId,
+                set: {
+                  ...(defaultProvider !== undefined && { defaultProvider }),
+                  ...(notifyUsageThreshold !== undefined && {
+                    notifyUsageThreshold,
+                  }),
+                  ...(notifyKeyExpiry !== undefined && { notifyKeyExpiry }),
+                  updatedAt: new Date().toISOString(),
+                },
+              })
+              .returning();
 
-        return prefs;
-      },
+            void publish({
+              type: "synapse.preferences.updated",
+              source: "omni.synapse",
+              organizationId: observer.id,
+              subject: observer.id,
+              data: { userId: observer.id, ...args.input },
+            });
+            void events.emit({
+              type: "synapse.preferences.updated",
+              data: { userId: observer.id, ...args.input },
+              organizationId: observer.id,
+              subject: observer.id,
+            });
+
+            return prefs;
+          },
+        [GraphQLError, userPreferenceTable, publish, events],
+      ),
     },
   },
 });

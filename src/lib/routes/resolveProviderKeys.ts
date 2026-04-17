@@ -9,8 +9,7 @@ import {
   userPreferenceTable,
   userTable,
 } from "lib/db/schema";
-import { publish } from "lib/events/publisher";
-import { billing, events } from "lib/providers";
+import { billing } from "lib/providers";
 import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
 /**

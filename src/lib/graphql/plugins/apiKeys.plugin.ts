@@ -1,5 +1,6 @@
 import { isWithinLimit } from "@omnidotdev/providers/billing";
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
@@ -24,26 +25,26 @@ const DEFAULT_LIMITS = {
  * Assert the observer has a specific permission on an organization via Warden.
  * No-ops if Warden is not configured.
  */
-const assertOrgPermission = async (
-  userId: string,
-  organizationId: string,
-  action: string,
-) => {
-  if (!authz) return;
+const assertOrgPermission = EXPORTABLE(
+  (authz, GraphQLError) =>
+    async (userId: string, organizationId: string, action: string) => {
+      if (!authz) return;
 
-  const allowed = await authz.checkPermission(
-    userId,
-    "organization",
-    organizationId,
-    action,
-  );
+      const allowed = await authz.checkPermission(
+        userId,
+        "organization",
+        organizationId,
+        action,
+      );
 
-  if (!allowed) {
-    throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
-      extensions: { code: "FORBIDDEN" },
-    });
-  }
-};
+      if (!allowed) {
+        throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
+    },
+  [authz, GraphQLError],
+);
 
 /**
  * API key management queries and mutations
@@ -111,413 +112,536 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
   `,
   resolvers: {
     ApiKeyInfo: {
-      async linkedProviders(
-        apiKey: { id: string },
-        _args: Record<string, never>,
-        ctx: GraphQLContext,
-      ) {
-        const { db } = ctx;
+      linkedProviders: EXPORTABLE(
+        (apiKeyProviderTable, eq, providerKeyTable) =>
+          async function linkedProviders(
+            apiKey: { id: string },
+            _args: Record<string, never>,
+            ctx: GraphQLContext,
+          ) {
+            const { db } = ctx;
 
-        const rows = await db
-          .select({
-            id: providerKeyTable.id,
-            provider: providerKeyTable.provider,
-            keyHint: providerKeyTable.keyHint,
-          })
-          .from(apiKeyProviderTable)
-          .innerJoin(
-            providerKeyTable,
-            eq(apiKeyProviderTable.providerKeyId, providerKeyTable.id),
-          )
-          .where(eq(apiKeyProviderTable.apiKeyId, apiKey.id));
+            const rows = await db
+              .select({
+                id: providerKeyTable.id,
+                provider: providerKeyTable.provider,
+                keyHint: providerKeyTable.keyHint,
+              })
+              .from(apiKeyProviderTable)
+              .innerJoin(
+                providerKeyTable,
+                eq(apiKeyProviderTable.providerKeyId, providerKeyTable.id),
+              )
+              .where(eq(apiKeyProviderTable.apiKeyId, apiKey.id));
 
-        return rows;
-      },
+            return rows;
+          },
+        [apiKeyProviderTable, eq, providerKeyTable],
+      ),
     },
     Observer: {
-      async apiKeys(
-        observer: { id: string },
-        args: { workspaceId?: string },
-        ctx: GraphQLContext,
-      ) {
-        const { db } = ctx;
+      apiKeys: EXPORTABLE(
+        (
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          desc,
+          eq,
+          isNull,
+          workspaceTable,
+        ) =>
+          async function apiKeys(
+            observer: { id: string },
+            args: { workspaceId?: string },
+            ctx: GraphQLContext,
+          ) {
+            const { db } = ctx;
 
-        // If workspace-scoped, verify org-level viewer permission
-        if (args.workspaceId) {
-          const [workspace] = await db
-            .select({ organizationId: workspaceTable.organizationId })
-            .from(workspaceTable)
-            .where(eq(workspaceTable.id, args.workspaceId));
+            // If workspace-scoped, verify org-level viewer permission
+            if (args.workspaceId) {
+              const [workspace] = await db
+                .select({ organizationId: workspaceTable.organizationId })
+                .from(workspaceTable)
+                .where(eq(workspaceTable.id, args.workspaceId));
 
-          if (workspace) {
-            await assertOrgPermission(
-              observer.id,
-              workspace.organizationId,
-              "viewer",
-            );
-          }
-        }
+              if (workspace) {
+                await assertOrgPermission(
+                  observer.id,
+                  workspace.organizationId,
+                  "viewer",
+                );
+              }
+            }
 
-        const conditions = [
-          eq(apiKeyTable.userId, observer.id),
-          isNull(apiKeyTable.revokedAt),
-        ];
+            const conditions = [
+              eq(apiKeyTable.userId, observer.id),
+              isNull(apiKeyTable.revokedAt),
+            ];
 
-        if (args.workspaceId) {
-          conditions.push(eq(apiKeyTable.workspaceId, args.workspaceId));
-        }
+            if (args.workspaceId) {
+              conditions.push(eq(apiKeyTable.workspaceId, args.workspaceId));
+            }
 
-        return db
-          .select()
-          .from(apiKeyTable)
-          .where(and(...conditions))
-          .orderBy(desc(apiKeyTable.createdAt));
-      },
+            return db
+              .select()
+              .from(apiKeyTable)
+              .where(and(...conditions))
+              .orderBy(desc(apiKeyTable.createdAt));
+          },
+        [
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          desc,
+          eq,
+          isNull,
+          workspaceTable,
+        ],
+      ),
     },
     Mutation: {
-      async generateApiKey(
-        _source: unknown,
-        args: { input: { name: string; mode: string; workspaceId?: string } },
-        ctx: GraphQLContext,
-      ) {
-        const { observer, db } = ctx;
-
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
-
-        const { name, mode, workspaceId } = args.input;
-
-        // Validate name length
-        if (name.length > 100) {
-          throw new GraphQLError(
-            "Name must be 100 characters or fewer",
-            { extensions: { code: "BAD_USER_INPUT" } },
-          );
-        }
-
-        // If workspace-scoped, verify org-level editor permission
-        if (workspaceId) {
-          const [workspace] = await db
-            .select({ organizationId: workspaceTable.organizationId })
-            .from(workspaceTable)
-            .where(eq(workspaceTable.id, workspaceId));
-
-          if (!workspace) {
-            throw new GraphQLError("Workspace not found", {
-              extensions: { code: "NOT_FOUND" },
-            });
-          }
-
-          await assertOrgPermission(
-            observer.id,
-            workspace.organizationId,
-            "editor",
-          );
-        }
-
-        // Only "byok" is allowed via user-facing mutations; "managed"
-        // keys are system-provisioned via internal routes
-        if (mode !== "byok") {
-          throw new GraphQLError(
-            'Invalid key mode. Only "byok" is allowed',
-            { extensions: { code: "BAD_USER_INPUT" } },
-          );
-        }
-
-        // Fetch entitlements before the transaction (external call)
-        const entitlements = await billing
-          .getEntitlements(
-            "user",
-            observer.identityProviderId ?? observer.id,
-            "synapse",
-          )
-          .catch(() => null);
-
-        const { raw, hash, hint } = generateApiKey();
-
-        // Wrap count check + insert in a transaction to prevent TOCTOU races
-        const apiKey = await db.transaction(async (tx) => {
-          // Enforce max_api_keys entitlement (managed keys are excluded,
-          // they are system-provisioned by other Omni apps and should not
-          // consume the user's quota)
-          const activeKeys = await tx
-            .select({ id: apiKeyTable.id })
-            .from(apiKeyTable)
-            .where(
-              and(
-                eq(apiKeyTable.userId, observer.id),
-                isNull(apiKeyTable.revokedAt),
-                ne(apiKeyTable.mode, "managed"),
-              ),
-            );
-
-          if (
-            !isWithinLimit(
-              entitlements,
-              "max_api_keys",
-              activeKeys.length,
-              DEFAULT_LIMITS,
-            )
+      generateApiKey: EXPORTABLE(
+        (
+          GraphQLError,
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          billing,
+          DEFAULT_LIMITS,
+          eq,
+          generateApiKey,
+          isNull,
+          isWithinLimit,
+          ne,
+          publish,
+          workspaceTable,
+        ) =>
+          async function generateApiKey_(
+            _source: unknown,
+            args: {
+              input: { name: string; mode: string; workspaceId?: string };
+            },
+            ctx: GraphQLContext,
           ) {
-            throw new GraphQLError(
-              "API key limit reached. Upgrade your plan for more keys",
-              { extensions: { code: "QUOTA_EXCEEDED" } },
-            );
-          }
+            const { observer, db } = ctx;
 
-          const [inserted] = await tx
-            .insert(apiKeyTable)
-            .values({
-              userId: observer.id,
-              name,
-              mode,
-              workspaceId: workspaceId ?? null,
-              keyHash: hash,
+            if (!observer) {
+              throw new GraphQLError("Authentication required", {
+                extensions: { code: "UNAUTHENTICATED" },
+              });
+            }
+
+            const { name, mode, workspaceId } = args.input;
+
+            // Validate name length
+            if (name.length > 100) {
+              throw new GraphQLError("Name must be 100 characters or fewer", {
+                extensions: { code: "BAD_USER_INPUT" },
+              });
+            }
+
+            // If workspace-scoped, verify org-level editor permission
+            if (workspaceId) {
+              const [workspace] = await db
+                .select({ organizationId: workspaceTable.organizationId })
+                .from(workspaceTable)
+                .where(eq(workspaceTable.id, workspaceId));
+
+              if (!workspace) {
+                throw new GraphQLError("Workspace not found", {
+                  extensions: { code: "NOT_FOUND" },
+                });
+              }
+
+              await assertOrgPermission(
+                observer.id,
+                workspace.organizationId,
+                "editor",
+              );
+            }
+
+            // Only "byok" is allowed via user-facing mutations; "managed"
+            // keys are system-provisioned via internal routes
+            if (mode !== "byok") {
+              throw new GraphQLError(
+                'Invalid key mode. Only "byok" is allowed',
+                { extensions: { code: "BAD_USER_INPUT" } },
+              );
+            }
+
+            // Fetch entitlements before the transaction (external call)
+            const entitlements = await billing
+              .getEntitlements(
+                "user",
+                observer.identityProviderId ?? observer.id,
+                "synapse",
+              )
+              .catch(() => null);
+
+            const { raw, hash, hint } = generateApiKey();
+
+            // Wrap count check + insert in a transaction to prevent TOCTOU races
+            const apiKey = await db.transaction(async (tx) => {
+              // Enforce max_api_keys entitlement (managed keys are excluded,
+              // they are system-provisioned by other Omni apps and should not
+              // consume the user's quota)
+              const activeKeys = await tx
+                .select({ id: apiKeyTable.id })
+                .from(apiKeyTable)
+                .where(
+                  and(
+                    eq(apiKeyTable.userId, observer.id),
+                    isNull(apiKeyTable.revokedAt),
+                    ne(apiKeyTable.mode, "managed"),
+                  ),
+                );
+
+              if (
+                !isWithinLimit(
+                  entitlements,
+                  "max_api_keys",
+                  activeKeys.length,
+                  DEFAULT_LIMITS,
+                )
+              ) {
+                throw new GraphQLError(
+                  "API key limit reached. Upgrade your plan for more keys",
+                  { extensions: { code: "QUOTA_EXCEEDED" } },
+                );
+              }
+
+              const [inserted] = await tx
+                .insert(apiKeyTable)
+                .values({
+                  userId: observer.id,
+                  name,
+                  mode,
+                  workspaceId: workspaceId ?? null,
+                  keyHash: hash,
+                  keyHint: hint,
+                })
+                .returning();
+
+              return inserted;
+            });
+
+            // Publish event (best-effort, fire-and-forget)
+            void publish({
+              type: "synapse.api_key.created",
+              source: "omni.synapse",
+              organizationId: observer.id,
+              subject: observer.id,
+              data: {
+                apiKeyId: apiKey.id,
+                name,
+                mode,
+                workspaceId: workspaceId ?? null,
+              },
+            });
+
+            return {
+              rawKey: raw,
+              apiKeyId: apiKey.id,
               keyHint: hint,
-            })
-            .returning();
-
-          return inserted;
-        });
-
-        // Publish event (best-effort, fire-and-forget)
-        void publish({
-          type: "synapse.api_key.created",
-          source: "omni.synapse",
-          organizationId: observer.id,
-          subject: observer.id,
-          data: {
-            apiKeyId: apiKey.id,
-            name,
-            mode,
-            workspaceId: workspaceId ?? null,
+            };
           },
-        });
+        [
+          GraphQLError,
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          billing,
+          DEFAULT_LIMITS,
+          eq,
+          generateApiKey,
+          isNull,
+          isWithinLimit,
+          ne,
+          publish,
+          workspaceTable,
+        ],
+      ),
 
-        return {
-          rawKey: raw,
-          apiKeyId: apiKey.id,
-          keyHint: hint,
-        };
-      },
+      revokeApiKey: EXPORTABLE(
+        (
+          GraphQLError,
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          isNull,
+          publish,
+          workspaceTable,
+        ) =>
+          async function revokeApiKey(
+            _source: unknown,
+            args: { id: string },
+            ctx: GraphQLContext,
+          ) {
+            const { observer, db } = ctx;
 
-      async revokeApiKey(
-        _source: unknown,
-        args: { id: string },
-        ctx: GraphQLContext,
-      ) {
-        const { observer, db } = ctx;
+            if (!observer) {
+              throw new GraphQLError("Authentication required", {
+                extensions: { code: "UNAUTHENTICATED" },
+              });
+            }
 
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+            // If the key is workspace-scoped, verify org-level editor permission
+            const [existing] = await db
+              .select({ workspaceId: apiKeyTable.workspaceId })
+              .from(apiKeyTable)
+              .where(
+                and(
+                  eq(apiKeyTable.id, args.id),
+                  eq(apiKeyTable.userId, observer.id),
+                ),
+              );
 
-        // If the key is workspace-scoped, verify org-level editor permission
-        const [existing] = await db
-          .select({ workspaceId: apiKeyTable.workspaceId })
-          .from(apiKeyTable)
-          .where(
-            and(
-              eq(apiKeyTable.id, args.id),
-              eq(apiKeyTable.userId, observer.id),
-            ),
-          );
+            if (!existing) {
+              throw new GraphQLError("API key not found", {
+                extensions: { code: "NOT_FOUND" },
+              });
+            }
 
-        if (!existing) {
-          throw new GraphQLError("API key not found", {
-            extensions: { code: "NOT_FOUND" },
-          });
-        }
+            if (existing.workspaceId) {
+              const [workspace] = await db
+                .select({ organizationId: workspaceTable.organizationId })
+                .from(workspaceTable)
+                .where(eq(workspaceTable.id, existing.workspaceId));
 
-        if (existing.workspaceId) {
-          const [workspace] = await db
-            .select({ organizationId: workspaceTable.organizationId })
-            .from(workspaceTable)
-            .where(eq(workspaceTable.id, existing.workspaceId));
+              if (workspace) {
+                await assertOrgPermission(
+                  observer.id,
+                  workspace.organizationId,
+                  "editor",
+                );
+              }
+            }
 
-          if (workspace) {
-            await assertOrgPermission(
-              observer.id,
-              workspace.organizationId,
-              "editor",
-            );
-          }
-        }
+            const [updated] = await db
+              .update(apiKeyTable)
+              .set({
+                revokedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              })
+              .where(
+                and(
+                  eq(apiKeyTable.id, args.id),
+                  eq(apiKeyTable.userId, observer.id),
+                  isNull(apiKeyTable.revokedAt),
+                ),
+              )
+              .returning();
 
-        const [updated] = await db
-          .update(apiKeyTable)
-          .set({
-            revokedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })
-          .where(
-            and(
-              eq(apiKeyTable.id, args.id),
-              eq(apiKeyTable.userId, observer.id),
-              isNull(apiKeyTable.revokedAt),
-            ),
-          )
-          .returning();
+            if (updated) {
+              // Publish event (best-effort, fire-and-forget)
+              void publish({
+                type: "synapse.api_key.revoked",
+                source: "omni.synapse",
+                organizationId: observer.id,
+                subject: observer.id,
+                data: { apiKeyId: args.id },
+              });
+            }
 
-        if (updated) {
-          // Publish event (best-effort, fire-and-forget)
-          void publish({
-            type: "synapse.api_key.revoked",
-            source: "omni.synapse",
-            organizationId: observer.id,
-            subject: observer.id,
-            data: { apiKeyId: args.id },
-          });
-        }
+            return !!updated;
+          },
+        [
+          GraphQLError,
+          and,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          isNull,
+          publish,
+          workspaceTable,
+        ],
+      ),
 
-        return !!updated;
-      },
+      linkProviderKey: EXPORTABLE(
+        (
+          GraphQLError,
+          and,
+          apiKeyProviderTable,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          isNull,
+          providerKeyTable,
+          workspaceTable,
+        ) =>
+          async function linkProviderKey(
+            _source: unknown,
+            args: { apiKeyId: string; providerKeyId: string },
+            ctx: GraphQLContext,
+          ) {
+            const { observer, db } = ctx;
 
-      async linkProviderKey(
-        _source: unknown,
-        args: { apiKeyId: string; providerKeyId: string },
-        ctx: GraphQLContext,
-      ) {
-        const { observer, db } = ctx;
+            if (!observer) {
+              throw new GraphQLError("Authentication required", {
+                extensions: { code: "UNAUTHENTICATED" },
+              });
+            }
 
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+            // Verify observer owns the API key and it is not revoked
+            const [apiKey] = await db
+              .select({
+                id: apiKeyTable.id,
+                workspaceId: apiKeyTable.workspaceId,
+              })
+              .from(apiKeyTable)
+              .where(
+                and(
+                  eq(apiKeyTable.id, args.apiKeyId),
+                  eq(apiKeyTable.userId, observer.id),
+                  isNull(apiKeyTable.revokedAt),
+                ),
+              );
 
-        // Verify observer owns the API key and it is not revoked
-        const [apiKey] = await db
-          .select({
-            id: apiKeyTable.id,
-            workspaceId: apiKeyTable.workspaceId,
-          })
-          .from(apiKeyTable)
-          .where(
-            and(
-              eq(apiKeyTable.id, args.apiKeyId),
-              eq(apiKeyTable.userId, observer.id),
-              isNull(apiKeyTable.revokedAt),
-            ),
-          );
+            if (!apiKey) {
+              throw new GraphQLError("API key not found", {
+                extensions: { code: "NOT_FOUND" },
+              });
+            }
 
-        if (!apiKey) {
-          throw new GraphQLError("API key not found", {
-            extensions: { code: "NOT_FOUND" },
-          });
-        }
+            // If workspace-scoped, verify org-level editor permission
+            if (apiKey.workspaceId) {
+              const [workspace] = await db
+                .select({ organizationId: workspaceTable.organizationId })
+                .from(workspaceTable)
+                .where(eq(workspaceTable.id, apiKey.workspaceId));
 
-        // If workspace-scoped, verify org-level editor permission
-        if (apiKey.workspaceId) {
-          const [workspace] = await db
-            .select({ organizationId: workspaceTable.organizationId })
-            .from(workspaceTable)
-            .where(eq(workspaceTable.id, apiKey.workspaceId));
+              if (workspace) {
+                await assertOrgPermission(
+                  observer.id,
+                  workspace.organizationId,
+                  "editor",
+                );
+              }
+            }
 
-          if (workspace) {
-            await assertOrgPermission(
-              observer.id,
-              workspace.organizationId,
-              "editor",
-            );
-          }
-        }
+            // Verify observer owns the provider key
+            const [providerKey] = await db
+              .select({ id: providerKeyTable.id })
+              .from(providerKeyTable)
+              .where(
+                and(
+                  eq(providerKeyTable.id, args.providerKeyId),
+                  eq(providerKeyTable.userId, observer.id),
+                ),
+              );
 
-        // Verify observer owns the provider key
-        const [providerKey] = await db
-          .select({ id: providerKeyTable.id })
-          .from(providerKeyTable)
-          .where(
-            and(
-              eq(providerKeyTable.id, args.providerKeyId),
-              eq(providerKeyTable.userId, observer.id),
-            ),
-          );
+            if (!providerKey) {
+              throw new GraphQLError("Provider key not found", {
+                extensions: { code: "NOT_FOUND" },
+              });
+            }
 
-        if (!providerKey) {
-          throw new GraphQLError("Provider key not found", {
-            extensions: { code: "NOT_FOUND" },
-          });
-        }
+            const [inserted] = await db
+              .insert(apiKeyProviderTable)
+              .values({
+                apiKeyId: args.apiKeyId,
+                providerKeyId: args.providerKeyId,
+              })
+              .onConflictDoNothing()
+              .returning();
 
-        const [inserted] = await db
-          .insert(apiKeyProviderTable)
-          .values({
-            apiKeyId: args.apiKeyId,
-            providerKeyId: args.providerKeyId,
-          })
-          .onConflictDoNothing()
-          .returning();
+            return !!inserted;
+          },
+        [
+          GraphQLError,
+          and,
+          apiKeyProviderTable,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          isNull,
+          providerKeyTable,
+          workspaceTable,
+        ],
+      ),
 
-        return !!inserted;
-      },
+      unlinkProviderKey: EXPORTABLE(
+        (
+          GraphQLError,
+          and,
+          apiKeyProviderTable,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          workspaceTable,
+        ) =>
+          async function unlinkProviderKey(
+            _source: unknown,
+            args: { apiKeyId: string; providerKeyId: string },
+            ctx: GraphQLContext,
+          ) {
+            const { observer, db } = ctx;
 
-      async unlinkProviderKey(
-        _source: unknown,
-        args: { apiKeyId: string; providerKeyId: string },
-        ctx: GraphQLContext,
-      ) {
-        const { observer, db } = ctx;
+            if (!observer) {
+              throw new GraphQLError("Authentication required", {
+                extensions: { code: "UNAUTHENTICATED" },
+              });
+            }
 
-        if (!observer) {
-          throw new GraphQLError("Authentication required", {
-            extensions: { code: "UNAUTHENTICATED" },
-          });
-        }
+            // Verify observer owns the API key
+            const [apiKey] = await db
+              .select({
+                id: apiKeyTable.id,
+                workspaceId: apiKeyTable.workspaceId,
+              })
+              .from(apiKeyTable)
+              .where(
+                and(
+                  eq(apiKeyTable.id, args.apiKeyId),
+                  eq(apiKeyTable.userId, observer.id),
+                ),
+              );
 
-        // Verify observer owns the API key
-        const [apiKey] = await db
-          .select({
-            id: apiKeyTable.id,
-            workspaceId: apiKeyTable.workspaceId,
-          })
-          .from(apiKeyTable)
-          .where(
-            and(
-              eq(apiKeyTable.id, args.apiKeyId),
-              eq(apiKeyTable.userId, observer.id),
-            ),
-          );
+            if (!apiKey) {
+              throw new GraphQLError("API key not found", {
+                extensions: { code: "NOT_FOUND" },
+              });
+            }
 
-        if (!apiKey) {
-          throw new GraphQLError("API key not found", {
-            extensions: { code: "NOT_FOUND" },
-          });
-        }
+            // If workspace-scoped, verify org-level editor permission
+            if (apiKey.workspaceId) {
+              const [workspace] = await db
+                .select({ organizationId: workspaceTable.organizationId })
+                .from(workspaceTable)
+                .where(eq(workspaceTable.id, apiKey.workspaceId));
 
-        // If workspace-scoped, verify org-level editor permission
-        if (apiKey.workspaceId) {
-          const [workspace] = await db
-            .select({ organizationId: workspaceTable.organizationId })
-            .from(workspaceTable)
-            .where(eq(workspaceTable.id, apiKey.workspaceId));
+              if (workspace) {
+                await assertOrgPermission(
+                  observer.id,
+                  workspace.organizationId,
+                  "editor",
+                );
+              }
+            }
 
-          if (workspace) {
-            await assertOrgPermission(
-              observer.id,
-              workspace.organizationId,
-              "editor",
-            );
-          }
-        }
+            const [deleted] = await db
+              .delete(apiKeyProviderTable)
+              .where(
+                and(
+                  eq(apiKeyProviderTable.apiKeyId, args.apiKeyId),
+                  eq(apiKeyProviderTable.providerKeyId, args.providerKeyId),
+                ),
+              )
+              .returning();
 
-        const [deleted] = await db
-          .delete(apiKeyProviderTable)
-          .where(
-            and(
-              eq(apiKeyProviderTable.apiKeyId, args.apiKeyId),
-              eq(apiKeyProviderTable.providerKeyId, args.providerKeyId),
-            ),
-          )
-          .returning();
-
-        return !!deleted;
-      },
+            return !!deleted;
+          },
+        [
+          GraphQLError,
+          and,
+          apiKeyProviderTable,
+          apiKeyTable,
+          assertOrgPermission,
+          eq,
+          workspaceTable,
+        ],
+      ),
     },
   },
 });
