@@ -67,7 +67,7 @@
     "@graphile/simplify-inflection": "8.0.0",
     "@graphql-yoga/plugin-disable-introspection": "^2.22.0",
     "@iggy.rs/sdk": "^1.0.6",
-    "@omnidotdev/providers": "github:omnidotdev/providers#72baa55",
+    "@omnidotdev/providers": "github:omnidotdev/providers#97a4ace",
     "@tanstack/query-core": "^5.99.2",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
