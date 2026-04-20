@@ -32,7 +32,7 @@ const assertOrgMembership = async (
  * Assert the observer has a specific permission on an organization via Warden.
  * @param userId - The observer's database user ID
  * @param organizationId - The organization to check against
- * @param action - The required permission (e.g. "viewer", "editor", "admin")
+ * @param action - The required permission (e.g. "viewer", "member", "admin")
  */
 const assertOrgPermission = async (
   userId: string,
@@ -189,7 +189,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         }
 
         await assertOrgMembership(observer.identityProviderId, organizationId);
-        await assertOrgPermission(observer.id, organizationId, "editor");
+        await assertOrgPermission(observer.id, organizationId, "admin");
 
         // Fetch entitlements before the transaction (external call)
         const entitlements = await billing
@@ -314,7 +314,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
         await assertOrgPermission(
           observer.id,
           existing.organizationId,
-          "editor",
+          "admin",
         );
 
         const set: Record<string, unknown> = {

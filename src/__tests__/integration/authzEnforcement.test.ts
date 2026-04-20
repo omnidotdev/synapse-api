@@ -97,7 +97,7 @@ const generateApiKeyWithAuthz = async (
 			});
 		}
 
-		await assertOrgPermission(observer.id, workspace.organizationId, "editor");
+		await assertOrgPermission(observer.id, workspace.organizationId, "admin");
 	}
 
 	const { raw, hash, hint } = generateApiKey();
@@ -141,7 +141,7 @@ const addWorkspaceWithAuthz = async (
 	const { organizationId, name, slug, description } = args.input;
 
 	// Authz check (org membership validation skipped in this test, tested separately)
-	await assertOrgPermission(observer.id, organizationId, "editor");
+	await assertOrgPermission(observer.id, organizationId, "admin");
 
 	const [workspace] = await db
 		.insert(workspaceTable)
@@ -240,7 +240,7 @@ describe("authz enforcement: API key mutations", () => {
 			user.id,
 			"organization",
 			orgId,
-			"editor",
+			"admin",
 		);
 	});
 
@@ -269,7 +269,7 @@ describe("authz enforcement: API key mutations", () => {
 			user.id,
 			"organization",
 			orgId,
-			"editor",
+			"admin",
 		);
 	});
 
@@ -337,7 +337,7 @@ describe("authz enforcement: workspace mutations", () => {
 			user.id,
 			"organization",
 			orgId,
-			"editor",
+			"admin",
 		);
 	});
 

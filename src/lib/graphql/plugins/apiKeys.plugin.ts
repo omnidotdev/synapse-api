@@ -213,7 +213,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           await assertOrgPermission(
             observer.id,
             workspace.organizationId,
-            "editor",
+            "admin",
           );
         }
 
@@ -342,7 +342,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             await assertOrgPermission(
               observer.id,
               workspace.organizationId,
-              "editor",
+              "admin",
             );
           }
         }
@@ -421,7 +421,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             await assertOrgPermission(
               observer.id,
               workspace.organizationId,
-              "editor",
+              "admin",
             );
           }
         }
@@ -499,7 +499,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             await assertOrgPermission(
               observer.id,
               workspace.organizationId,
-              "editor",
+              "admin",
             );
           }
         }
