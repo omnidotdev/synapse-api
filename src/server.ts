@@ -33,6 +33,7 @@ import ensureDatabase from "lib/db/ensureDatabase";
 import { closePublisher, initPublisher } from "lib/events/publisher";
 import createGraphqlContext from "lib/graphql/createGraphqlContext";
 import { armorPlugin, createAuthenticationPlugin } from "lib/graphql/plugins";
+import organizationMiddleware from "lib/middleware/organization.middleware";
 import {
   provisionKeyRoute,
   reportUsageRoute,
@@ -113,6 +114,36 @@ if (VORTEX_API_URL && VORTEX_API_KEY) {
       source: "omni.synapse",
       description: "User preferences updated",
     },
+    {
+      name: "synapse.usage.recorded",
+      source: "omni.synapse",
+      description: "Usage events recorded from the gateway",
+    },
+    {
+      name: "synapse.entitlement.changed",
+      source: "omni.synapse",
+      description: "User entitlements changed via billing webhook",
+    },
+    {
+      name: "synapse.api_key.created",
+      source: "omni.synapse",
+      description: "API key created",
+    },
+    {
+      name: "synapse.api_key.revoked",
+      source: "omni.synapse",
+      description: "API key revoked",
+    },
+    {
+      name: "synapse.provider_key.upserted",
+      source: "omni.synapse",
+      description: "Provider key created or updated",
+    },
+    {
+      name: "synapse.provider_key.deleted",
+      source: "omni.synapse",
+      description: "Provider key deleted",
+    },
   ]).catch((err) => {
     console.warn("[Events] Schema registration failed:", err);
   });
@@ -177,6 +208,8 @@ const app = new Elysia({
   .use(reportUsageRoute)
   .use(usageRoute)
   .use(webhooks)
+  // organization-level authZ (safe no-op for non-org routes)
+  .use(organizationMiddleware)
   // rate limiting (applies to external routes below)
   .use(
     rateLimit({

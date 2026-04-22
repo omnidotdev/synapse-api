@@ -1,62 +1,23 @@
 <div align="center">
+  <h1 align="center">🧠 Synapse API</h1>
 
-# Synapse API
-
-GraphQL API for Synapse
-
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE.md)
+[Website](https://synapse.omni.dev) | [Docs](https://docs.omni.dev/docs/grid/synapse) | [Feedback](https://github.com/omnidotdev/synapse-stack/issues) | [Discord](https://discord.gg/omnidotdev) | [X](https://x.com/omnidotdev)
 
 </div>
 
-## Overview
-
-Synapse API is the backend service powering the Synapse dashboard. Built with Elysia, PostGraphile, and Drizzle ORM on PostgreSQL, it exposes a Relay-compliant GraphQL schema for managing provider keys, usage analytics, routing policies, and billing integration.
+**Synapse API** is the GraphQL API for Synapse, built with [Bun](https://bun.sh), [Elysia](https://elysiajs.com), and TypeScript.
 
 ## Features
 
-- **Modern Stack**: Built with [Bun](https://bun.sh), [Elysia](https://elysiajs.com), and TypeScript for fast development and runtime performance
-- **Powerful GraphQL API**:
-  - Integration with [PostGraphile](https://postgraphile.org) for auto-generated GraphQL APIs from PostgreSQL schema
-  - [GraphQL Yoga](https://the-guild.dev/graphql/yoga-server) for flexible GraphQL server setup and easy access to [Envelop](https://the-guild.dev/graphql/envelop) plugin ecosystem
-  - [Grafast](https://grafast.org) for efficient GraphQL execution (query planning)
-  - [Relay](https://relay.dev/docs/guides/graphql-server-specification) specification compliance
-  - [Connection filter plugin](https://github.com/graphile-contrib/postgraphile-plugin-connection-filter) for advanced filtering
-  - [Simplify inflection](https://github.com/graphile/simplify-inflection) for cleaner schema naming
-  - No [N+1 problem](https://hygraph.com/blog/graphql-n-1-problem)
-- **Security**:
-  - [GraphQL Armor](https://escape.tech/graphql-armor) for securing GraphQL endpoints with operation complexity limits, depth limits, and more
-  - JWT validation with remote JWKS support via [jose](https://github.com/panva/jose)
-  - CORS with configurable allowed origins
-  - Rate limiting with [elysia-rate-limit](https://github.com/rayriffy/elysia-rate-limit)
-  - TLS/HTTPS support out of the box
-  - GraphQL schema introspection disabled in production environments
-- **Optimal Performance**:
-  - GraphQL parser and validation caching via Envelop plugins
-  - PostgreSQL connection pooling
-  - Optimized GraphQL execution with Grafast
-- **Database Management**:
-  - [Drizzle ORM](https://orm.drizzle.team) for type-safe database operations
-  - Automated migrations with `drizzle-kit`
-  - Database seeding with [drizzle-seed](https://orm.drizzle.team/docs/seed) and [Faker.js](https://fakerjs.dev)
-  - [Drizzle Studio](https://orm.drizzle.team/drizzle-studio) for visual database management
-- **Observability**: [OpenTelemetry](https://opentelemetry.io) integration for traces, metrics, and structured logs
-- **Testing**:
-  - Unit tests with [Bun test runner](https://bun.sh/docs/cli/test)
-  - [Testcontainers](https://testcontainers.com) for isolated PostgreSQL integration tests
-  - [MSW (Mock Service Worker)](https://mswjs.io) for API mocking
-  - Coverage reporting
-- **Developer Experience**:
-  - Hot reloading during development
-  - Code quality with [Biome](https://biomejs.dev) for linting and formatting
-  - Git hooks with [Husky](https://typicode.github.io/husky)
-  - TypeScript strict mode with comprehensive type safety
-  - [Knip](https://knip.dev) for unused dependency detection
-  - Easy spin up with [Tilt](https://tilt.dev)
-- **Production Ready**:
-  - Environment-specific configurations
-  - Health check endpoints (`/health`, `/ready`) for container orchestration
-  - Graceful shutdown handling (SIGTERM/SIGINT)
-  - Security headers, rate limiting, and TLS/HTTPS
+- 🚀 **Modern Stack**: Built with [Bun](https://bun.sh), [Elysia](https://elysiajs.com), and TypeScript
+- 🧩 **Powerful GraphQL API**: [PostGraphile](https://postgraphile.org), [GraphQL Yoga](https://the-guild.dev/graphql/yoga-server), [Grafast](https://grafast.org), [Relay](https://relay.dev/docs/guides/graphql-server-specification) compliance
+- 🔒 **Security**: [GraphQL Armor](https://escape.tech/graphql-armor), JWT/JWKS validation, CORS, rate limiting, TLS
+- ⚡ **Performance**: Query caching, connection pooling, optimized execution
+- 🗄️ **Database**: [Drizzle ORM](https://orm.drizzle.team), automated migrations, seeding, [Drizzle Studio](https://orm.drizzle.team/drizzle-studio)
+- 📡 **Observability**: [OpenTelemetry](https://opentelemetry.io) traces, metrics, and structured logs
+- 🧪 **Testing**: [Bun test runner](https://bun.sh/docs/cli/test), [Testcontainers](https://testcontainers.com), [MSW](https://mswjs.io)
+- 🛠️ **DX**: Hot reloading, [Biome](https://biomejs.dev), [Husky](https://typicode.github.io/husky), [Knip](https://knip.dev), [Tilt](https://tilt.dev)
+- 🚢 **Production Ready**: Health checks (`/health`, `/ready`), graceful shutdown, security headers
 
 ## Local Development
 

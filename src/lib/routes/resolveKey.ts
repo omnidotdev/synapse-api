@@ -144,9 +144,13 @@ const resolveKeyRoute = new Elysia().post(
 
         providerKeys = keys.flatMap((k) => {
           try {
-            return [{ provider: k.provider, decryptedKey: decrypt(k.encryptedKey) }];
+            return [
+              { provider: k.provider, decryptedKey: decrypt(k.encryptedKey) },
+            ];
           } catch {
-            console.warn(`failed to decrypt provider key for ${k.provider}, skipping`);
+            console.warn(
+              `failed to decrypt provider key for ${k.provider}, skipping`,
+            );
             return [];
           }
         });
@@ -170,9 +174,13 @@ const resolveKeyRoute = new Elysia().post(
       // Per-key links take precedence over account-level BYOK keys
       providerKeys = linkedProviderKeys.flatMap((pk) => {
         try {
-          return [{ provider: pk.provider, decryptedKey: decrypt(pk.encryptedKey) }];
+          return [
+            { provider: pk.provider, decryptedKey: decrypt(pk.encryptedKey) },
+          ];
         } catch {
-          console.warn(`failed to decrypt linked provider key for ${pk.provider}, skipping`);
+          console.warn(
+            `failed to decrypt linked provider key for ${pk.provider}, skipping`,
+          );
           return [];
         }
       });

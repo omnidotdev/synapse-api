@@ -35,7 +35,8 @@ const graphilePreset: GraphileConfig.Preset = {
   schema: {
     // Disable all auto-generated CRUD operations on tables. All queries and
     // mutations are defined explicitly via custom plugins with proper authZ.
-    defaultBehavior: "-insert -update -delete -select:single -select:connection -select:list -select:resource:single -select:resource:connection -select:resource:list",
+    defaultBehavior:
+      "-insert -update -delete -select:single -select:connection -select:list -select:resource:single -select:resource:connection -select:resource:list",
   },
 };
 

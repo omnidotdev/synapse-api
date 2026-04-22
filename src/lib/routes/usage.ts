@@ -5,6 +5,7 @@ import {
   AUTH_BASE_URL,
   BILLING_BASE_URL,
   BILLING_SERVICE_API_KEY,
+  CORS_ALLOWED_ORIGINS,
 } from "lib/config/env.config";
 import { dbPool } from "lib/db";
 import { userTable } from "lib/db/schema";
@@ -145,11 +146,9 @@ const usageRoute = new Elysia()
       }
 
       // Validate redirect URLs to prevent open redirect attacks
-      const allowedOrigins = [
-        "https://synapse.omni.dev",
-        "https://localhost:3000",
-        "http://localhost:3000",
-      ];
+      const allowedOrigins = CORS_ALLOWED_ORIGINS!
+        .split(",")
+        .map((o) => o.trim());
       const isAllowedUrl = (url: string) => {
         try {
           const parsed = new URL(url);
