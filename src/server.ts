@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { cors } from "@elysiajs/cors";
 import { yoga } from "@elysiajs/graphql-yoga";
 import { useOpenTelemetry } from "@envelop/opentelemetry";
@@ -41,6 +43,8 @@ import {
   resolveProviderKeysRoute,
   usageRoute,
 } from "lib/routes";
+
+const commit = (() => { try { return readFileSync("/app/.git-sha", "utf-8").trim(); } catch { return "unknown"; } })();
 
 // Warn if authZ is enabled but the API URL is missing (fail-open risk)
 if (!AUTHZ_API_URL) {
@@ -180,6 +184,7 @@ const app = new Elysia({
     status: "ok",
     timestamp: Date.now(),
     service: appConfig.name,
+    commit,
   }))
   // readiness endpoint (before rate limiter)
   .get("/ready", async ({ set }) => {
