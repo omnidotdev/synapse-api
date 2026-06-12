@@ -21,6 +21,8 @@ const knipConfig: KnipConfig = {
     "src/lib/idp/**",
     "src/lib/logging/**",
     "src/lib/middleware/**",
+    // Instrumentation loaded via --import flag at runtime
+    "src/instrumentation.ts",
   ],
   ignoreDependencies: [
     "@changesets/cli",
@@ -28,6 +30,14 @@ const knipConfig: KnipConfig = {
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
+    // OpenTelemetry deps used by instrumentation.ts (loaded via --import)
+    "@opentelemetry/auto-instrumentations-node",
+    "@opentelemetry/exporter-logs-otlp-http",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/resources",
+    "@opentelemetry/sdk-logs",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/semantic-conventions",
   ],
   ignoreBinaries: [
     "tsc", // Bun provides TypeScript compilation
