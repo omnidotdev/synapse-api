@@ -113,7 +113,11 @@ export const cleanupOrphanedContainers = async (): Promise<void> => {
  * Uses host networking to avoid Docker port mapping issues.
  */
 export const startPostgresContainer = async (): Promise<PostgresContainer> => {
-  // Start the container with host networking
+  // Start the container, publishing the fixed Postgres port to the host. A
+  // fixed published port (rather than `--network host`) keeps the connection
+  // URI deterministic while remaining portable: Docker Desktop on macOS does
+  // not expose host-networked container ports to the host, so `-p` is required
+  // there, and it works identically on Linux CI.
   const startResult = Bun.spawnSync({
     cmd: [
       "docker",
@@ -123,8 +127,8 @@ export const startPostgresContainer = async (): Promise<PostgresContainer> => {
       CONTAINER_NAME,
       "--label",
       `${CONTAINER_LABEL}=true`,
-      "--network",
-      "host",
+      "-p",
+      `${POSTGRES_PORT}:${POSTGRES_PORT}`,
       "-e",
       `POSTGRES_USER=${POSTGRES_USER}`,
       "-e",
