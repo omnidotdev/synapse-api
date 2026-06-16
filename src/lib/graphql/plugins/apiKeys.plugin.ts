@@ -242,7 +242,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If workspace-scoped, verify org-level editor permission
+            // If workspace-scoped, verify org-level admin permission
             if (workspaceId) {
               const [workspace] = await db
                 .select({ organizationId: workspaceTable.organizationId })
@@ -258,7 +258,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               await assertOrgPermission(
                 observer.id,
                 workspace.organizationId,
-                "editor",
+                "admin",
               );
             }
 
@@ -405,7 +405,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If the key is workspace-scoped, verify org-level editor permission
+            // If the key is workspace-scoped, verify org-level admin permission
             const [existing] = await db
               .select({ workspaceId: apiKeyTable.workspaceId })
               .from(apiKeyTable)
@@ -432,7 +432,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 await assertOrgPermission(
                   observer.id,
                   workspace.organizationId,
-                  "editor",
+                  "admin",
                 );
               }
             }
@@ -537,7 +537,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If workspace-scoped, verify org-level editor permission
+            // If workspace-scoped, verify org-level admin permission
             if (apiKey.workspaceId) {
               const [workspace] = await db
                 .select({ organizationId: workspaceTable.organizationId })
@@ -548,7 +548,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 await assertOrgPermission(
                   observer.id,
                   workspace.organizationId,
-                  "editor",
+                  "admin",
                 );
               }
             }
@@ -637,7 +637,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If workspace-scoped, verify org-level editor permission
+            // If workspace-scoped, verify org-level admin permission
             if (apiKey.workspaceId) {
               const [workspace] = await db
                 .select({ organizationId: workspaceTable.organizationId })
@@ -648,7 +648,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 await assertOrgPermission(
                   observer.id,
                   workspace.organizationId,
-                  "editor",
+                  "admin",
                 );
               }
             }

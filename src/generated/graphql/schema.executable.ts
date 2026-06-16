@@ -3885,7 +3885,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, organizationId);
-          await assertOrgPermission(observer.id, organizationId, "editor");
+          await assertOrgPermission(observer.id, organizationId, "admin");
           const entitlements = await billing.getEntitlements("organization", organizationId, "synapse").catch(() => null),
             workspace = await db.transaction(async tx => {
               const existingWorkspaces = await tx.select({
@@ -3975,7 +3975,7 @@ export const objects = {
                 code: "NOT_FOUND"
               }
             });
-            await assertOrgPermission(observer.id, workspace.organizationId, "editor");
+            await assertOrgPermission(observer.id, workspace.organizationId, "admin");
           }
           if (mode !== "byok") throw new GraphQLError('Invalid key mode. Only "byok" is allowed', {
             extensions: {
@@ -4065,7 +4065,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, apiKey.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "editor");
+            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
           }
           const [providerKey] = await db.select({
             id: providerKeyTable.id
@@ -4125,7 +4125,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, existing.organizationId);
-          await assertOrgPermission(observer.id, existing.organizationId, "editor");
+          await assertOrgPermission(observer.id, existing.organizationId, "admin");
           const set = {
             updatedAt: new Date().toISOString()
           };
@@ -4320,7 +4320,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, existing.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "editor");
+            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
           }
           const [updated] = await db.update(apiKeyTable).set({
             revokedAt: new Date().toISOString(),
@@ -4501,7 +4501,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, apiKey.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "editor");
+            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
           }
           const [deleted] = await db.delete(apiKeyProviderTable).where(and(eq(apiKeyProviderTable.apiKeyId, args.apiKeyId), eq(apiKeyProviderTable.providerKeyId, args.providerKeyId))).returning();
           return !!deleted;

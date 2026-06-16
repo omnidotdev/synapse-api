@@ -232,7 +232,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               observer.identityProviderId,
               organizationId,
             );
-            await assertOrgPermission(observer.id, organizationId, "editor");
+            await assertOrgPermission(observer.id, organizationId, "admin");
 
             // Fetch entitlements before the transaction (external call)
             const entitlements = await billing
@@ -397,7 +397,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
             await assertOrgPermission(
               observer.id,
               existing.organizationId,
-              "editor",
+              "admin",
             );
 
             const set: Record<string, unknown> = {
