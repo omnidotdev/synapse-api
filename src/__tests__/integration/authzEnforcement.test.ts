@@ -244,7 +244,7 @@ describe("authz enforcement: API key mutations", () => {
 		);
 	});
 
-	test("throws FORBIDDEN when authz denies editor permission", async () => {
+	test("throws FORBIDDEN when authz denies admin permission", async () => {
 		mockAuthz = {
 			checkPermission: mock(async () => false),
 		};
@@ -263,7 +263,7 @@ describe("authz enforcement: API key mutations", () => {
 				},
 				buildContext(user),
 			),
-		).rejects.toThrow("Insufficient permissions: requires editor");
+		).rejects.toThrow("Insufficient permissions: requires admin");
 
 		expect(mockAuthz.checkPermission).toHaveBeenCalledWith(
 			user.id,
@@ -341,7 +341,7 @@ describe("authz enforcement: workspace mutations", () => {
 		);
 	});
 
-	test("throws FORBIDDEN when authz denies editor permission for addWorkspace", async () => {
+	test("throws FORBIDDEN when authz denies admin permission for addWorkspace", async () => {
 		mockAuthz = {
 			checkPermission: mock(async () => false),
 		};
@@ -360,7 +360,7 @@ describe("authz enforcement: workspace mutations", () => {
 				},
 				buildContext(user),
 			),
-		).rejects.toThrow("Insufficient permissions: requires editor");
+		).rejects.toThrow("Insufficient permissions: requires admin");
 	});
 
 	test("throws FORBIDDEN when authz denies admin permission for removeWorkspace", async () => {
