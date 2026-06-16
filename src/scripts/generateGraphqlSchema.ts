@@ -8,11 +8,33 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { exportSchema } from "graphile-export";
-import { printSchema } from "graphql";
+import { isWithinLimit } from "@omnidotdev/providers/billing";
+import { and, desc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
+import { EXPORTABLE, exportSchema } from "graphile-export";
+import { GraphQLError, printSchema } from "graphql";
 import { makeSchema } from "postgraphile";
 
 import graphilePreset from "lib/config/graphile.config";
+import { encrypt, generateApiKey } from "lib/crypto";
+import {
+  apiKeyProviderTable,
+  apiKeyTable,
+  providerKeyTable,
+  usageEventTable,
+  userPreferenceTable,
+  workspaceTable,
+} from "lib/db/schema";
+import { publish } from "lib/events/publisher";
+import { validateOrgMembership } from "lib/idp";
+import { logAuditEvent } from "lib/logging";
+import { authz, billing, events } from "lib/providers";
+import {
+  isVaultEnabled,
+  listVaultKeys,
+  providerToUUID,
+  removeVaultKey,
+  setVaultKey,
+} from "lib/vault/client";
 
 const CACHE_DIR = `${__dirname}/../../.cache`;
 const HASH_FILE = `${CACHE_DIR}/schema-hash`;
@@ -90,22 +112,41 @@ const generateGraphqlSchema = async () => {
   if (!existsSync(generatedDirectory))
     mkdirSync(generatedDirectory, { recursive: true });
 
-  try {
-    await exportSchema(schema, schemaFilePath, {
-      mode: "typeDefs",
-    });
+  await exportSchema(schema, schemaFilePath, {
+    mode: "typeDefs",
+    modules: {
+      "graphile-export": { EXPORTABLE },
+      "@omnidotdev/providers/billing": { isWithinLimit },
+      "drizzle-orm": { and, desc, eq, gte, isNull, lte, ne, sql },
+      graphql: { GraphQLError },
+      "lib/crypto": { encrypt, generateApiKey },
+      "lib/db/schema": {
+        apiKeyProviderTable,
+        apiKeyTable,
+        providerKeyTable,
+        usageEventTable,
+        userPreferenceTable,
+        workspaceTable,
+      },
+      "lib/events/publisher": { publish },
+      "lib/idp": { validateOrgMembership },
+      "lib/logging": { logAuditEvent },
+      "lib/providers": { authz, billing, events },
+      "lib/vault/client": {
+        isVaultEnabled,
+        listVaultKeys,
+        providerToUUID,
+        removeVaultKey,
+        setVaultKey,
+      },
+    },
+  });
 
-    // Prepend `// @ts-nocheck` to suppress strict checking on generated code
-    const generated = readFileSync(schemaFilePath, "utf-8");
+  // Prepend `// @ts-nocheck` to suppress strict checking on generated code
+  const generated = readFileSync(schemaFilePath, "utf-8");
 
-    if (!generated.startsWith("// @ts-nocheck")) {
-      writeFileSync(schemaFilePath, `// @ts-nocheck\n${generated}`);
-    }
-  } catch (err) {
-    console.warn(
-      "[graphql:generate] Schema export failed (non-fatal):",
-      (err as Error).message,
-    );
+  if (!generated.startsWith("// @ts-nocheck")) {
+    writeFileSync(schemaFilePath, `// @ts-nocheck\n${generated}`);
   }
 
   // emit SDL
