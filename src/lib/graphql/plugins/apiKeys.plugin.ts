@@ -15,6 +15,7 @@ import { publish } from "lib/events/publisher";
 import { logAuditEvent } from "lib/logging";
 import { authz, billing } from "lib/providers";
 
+import type { WardenRelation } from "@omnidotdev/providers";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 // Fallback limits when Aether is unreachable
@@ -28,7 +29,11 @@ const DEFAULT_LIMITS = {
  */
 const assertOrgPermission = EXPORTABLE(
   (authz, GraphQLError) =>
-    async (userId: string, organizationId: string, action: string) => {
+    async (
+      userId: string,
+      organizationId: string,
+      action: WardenRelation<"organization">,
+    ) => {
       if (!authz) return;
 
       const allowed = await authz.checkPermission(
