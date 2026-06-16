@@ -447,12 +447,12 @@ const queryUsageBreakdownWithAuthz = async (
 				observer.id,
 				"organization",
 				workspace.organizationId,
-				"viewer",
+				"member",
 			);
 
 			if (!allowed) {
 				throw new GraphQLError(
-					"Insufficient permissions: requires viewer",
+					"Insufficient permissions: requires member",
 					{ extensions: { code: "FORBIDDEN" } },
 				);
 			}
@@ -479,7 +479,7 @@ describe("authz enforcement: usageBreakdown query", () => {
 		expect(mockAuthz.checkPermission).not.toHaveBeenCalled();
 	});
 
-	test("succeeds when authz grants viewer permission for workspace-scoped query", async () => {
+	test("succeeds when authz grants member permission for workspace-scoped query", async () => {
 		mockAuthz = {
 			checkPermission: mock(async () => true),
 		};
@@ -505,11 +505,11 @@ describe("authz enforcement: usageBreakdown query", () => {
 			user.id,
 			"organization",
 			orgId,
-			"viewer",
+			"member",
 		);
 	});
 
-	test("throws FORBIDDEN when authz denies viewer permission for workspace-scoped query", async () => {
+	test("throws FORBIDDEN when authz denies member permission for workspace-scoped query", async () => {
 		mockAuthz = {
 			checkPermission: mock(async () => false),
 		};
@@ -530,13 +530,13 @@ describe("authz enforcement: usageBreakdown query", () => {
 				},
 				buildContext(user),
 			),
-		).rejects.toThrow("Insufficient permissions: requires viewer");
+		).rejects.toThrow("Insufficient permissions: requires member");
 
 		expect(mockAuthz.checkPermission).toHaveBeenCalledWith(
 			user.id,
 			"organization",
 			orgId,
-			"viewer",
+			"member",
 		);
 	});
 

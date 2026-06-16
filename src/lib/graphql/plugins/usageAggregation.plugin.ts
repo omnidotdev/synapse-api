@@ -182,7 +182,7 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
             ];
 
             if (args.workspaceId) {
-              // Verify the observer has viewer permission on the workspace's org
+              // Verify the observer has member permission on the workspace's org
               const [workspace] = await db
                 .select({ organizationId: workspaceTable.organizationId })
                 .from(workspaceTable)
@@ -199,12 +199,12 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
                   observer.id,
                   "organization",
                   workspace.organizationId,
-                  "viewer",
+                  "member",
                 );
 
                 if (!allowed) {
                   throw new GraphQLError(
-                    "Insufficient permissions: requires viewer",
+                    "Insufficient permissions: requires member",
                     { extensions: { code: "FORBIDDEN" } },
                   );
                 }

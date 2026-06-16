@@ -3612,7 +3612,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, args.organizationId);
-          await assertOrgPermission(observer.id, args.organizationId, "viewer");
+          await assertOrgPermission(observer.id, args.organizationId, "member");
           return db.select().from(workspaceTable).where(eq(workspaceTable.organizationId, args.organizationId));
         },
         subscribe: undefined
@@ -4717,7 +4717,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, args.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "viewer");
+            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "member");
           }
           const conditions = [eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt)];
           if (args.workspaceId) conditions.push(eq(apiKeyTable.workspaceId, args.workspaceId));
