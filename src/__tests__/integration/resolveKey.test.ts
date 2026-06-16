@@ -334,6 +334,60 @@ describe("POST /internal/resolve-key", () => {
 		expect(body.providerKeys[0].decryptedKey).toBe(linkedKey);
 	});
 
+	test("returns 403 when managed key has managed_keys_enabled entitlement set to 0", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "managed",
+		});
+
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements").mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "managed_keys_enabled", value: 0 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(403);
+
+		const body = await res.json();
+		expect(body.error).toBe("managed_keys_not_enabled");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("allows managed key when managed_keys_enabled entitlement is 1", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "managed",
+		});
+
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements").mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "pro" },
+				{ featureKey: "managed_keys_enabled", value: 1 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.mode).toBe("managed");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
 	test("allows BYOK key when byok_enabled entitlement is absent", async () => {
 		const user = await userFactory.create(ctx.db);
 		const { raw, hash, hint } = generateApiKey();

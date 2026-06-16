@@ -12,6 +12,7 @@ import {
   workspaceTable,
 } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
+import { logAuditEvent } from "lib/logging";
 import { authz, billing } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
@@ -212,6 +213,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           generateApiKey,
           isNull,
           isWithinLimit,
+          logAuditEvent,
           ne,
           publish,
           workspaceTable,
@@ -339,6 +341,21 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               },
             });
 
+            // Audit log (gated by audit_logs entitlement)
+            void logAuditEvent(
+              {
+                userId: observer.id,
+                userIdpId: observer.identityProviderId,
+                workspaceId: workspaceId ?? undefined,
+              },
+              {
+                action: "api_key.created",
+                resource: "api_key",
+                resourceId: apiKey.id,
+                details: { name, mode, workspaceId: workspaceId ?? null },
+              },
+            );
+
             return {
               rawKey: raw,
               apiKeyId: apiKey.id,
@@ -356,6 +373,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           generateApiKey,
           isNull,
           isWithinLimit,
+          logAuditEvent,
           ne,
           publish,
           workspaceTable,
@@ -370,6 +388,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           assertOrgPermission,
           eq,
           isNull,
+          logAuditEvent,
           publish,
           workspaceTable,
         ) =>
@@ -442,6 +461,19 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 subject: observer.id,
                 data: { apiKeyId: args.id },
               });
+
+              // Audit log (gated by audit_logs entitlement)
+              void logAuditEvent(
+                {
+                  userId: observer.id,
+                  userIdpId: observer.identityProviderId,
+                },
+                {
+                  action: "api_key.revoked",
+                  resource: "api_key",
+                  resourceId: args.id,
+                },
+              );
             }
 
             return !!updated;
@@ -453,6 +485,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           assertOrgPermission,
           eq,
           isNull,
+          logAuditEvent,
           publish,
           workspaceTable,
         ],

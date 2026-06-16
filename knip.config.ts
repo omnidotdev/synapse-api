@@ -11,31 +11,33 @@ const knipConfig: KnipConfig = {
     "src/lib/config/drizzle.config.ts",
     "src/lib/config/plans.config.ts",
     "src/scripts/**",
-    "src/lib/db/db.ts",
     "src/lib/config/env.config.ts",
     "src/test/**",
-    "src/__tests__/**",
     // reference scaffolding retained for imminent adoption
     "src/lib/cache/**",
     "src/lib/db/scoped.ts",
-    "src/lib/db/createDbClient.ts",
     "src/lib/db/dbClient.ts",
     "src/lib/db/pgClient.ts",
     "src/lib/idp/**",
     "src/lib/logging/**",
     "src/lib/middleware/**",
-    "src/lib/providers/**",
+    // Instrumentation loaded via --import flag at runtime
+    "src/instrumentation.ts",
   ],
   ignoreDependencies: [
-    // GitHub dependency not resolvable by knip
-    "@omnidotdev/providers",
-    "@changesets/changelog-github",
     "@changesets/cli",
     "drizzle-kit",
     // TODO switch to testcontainers (unstable behavior with Bun/Docker), then remove below
     "@testcontainers/postgresql",
     "testcontainers",
-    "@faker-js/faker",
+    // OpenTelemetry deps used by instrumentation.ts (loaded via --import)
+    "@opentelemetry/auto-instrumentations-node",
+    "@opentelemetry/exporter-logs-otlp-http",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/resources",
+    "@opentelemetry/sdk-logs",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/semantic-conventions",
   ],
   ignoreBinaries: [
     "tsc", // Bun provides TypeScript compilation

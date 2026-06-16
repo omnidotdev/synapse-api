@@ -4,9 +4,40 @@ import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
 import { usageEventTable, workspaceTable } from "lib/db/schema";
-import { authz } from "lib/providers";
+import { authz, billing } from "lib/providers";
 
+import type { EntitlementsResponse } from "@omnidotdev/providers/billing";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
+
+// Fallback retention windows when Aether is unreachable (mirrors omni-api SSOT)
+const DEFAULT_RETENTION_DAYS: Record<string, number> = {
+  free: 7,
+  pro: 90,
+  team: 365,
+};
+
+/**
+ * Resolve the analytics_retention_days entitlement for the given entitlements
+ * payload. Falls back to free-tier (7 days) when the entitlement is absent.
+ * A value of -1 means unlimited (treated as 366 days, the max supported range).
+ */
+const resolveRetentionDays = (
+  entitlements: EntitlementsResponse | null,
+  tier: string,
+): number => {
+  const entry = entitlements?.entitlements?.find(
+    (e) => e.featureKey === "analytics_retention_days",
+  );
+
+  if (entry?.value != null) {
+    const val = Number(String(entry.value).replace(/"/g, ""));
+    if (Number.isFinite(val)) {
+      return val === -1 ? 366 : val;
+    }
+  }
+
+  return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
+};
 
 /**
  * Usage aggregation queries for charts and breakdowns
@@ -54,6 +85,8 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
           usageEventTable,
           workspaceTable,
           authz,
+          billing,
+          resolveRetentionDays,
         ) =>
           async function usageBreakdown(
             _source: unknown,
@@ -95,6 +128,46 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
               throw new GraphQLError("Date range must not exceed 366 days", {
                 extensions: { code: "BAD_USER_INPUT" },
               });
+            }
+
+            // Enforce analytics_retention_days entitlement: the requested startDate
+            // must not look further back than the user's plan permits. Workspace
+            // queries use the organization entity, otherwise the observer's user
+            // entity is used.
+            const retentionEntity = args.workspaceId
+              ? ("organization" as const)
+              : ("user" as const);
+            const retentionEntityId =
+              retentionEntity === "user"
+                ? (observer.identityProviderId ?? observer.id)
+                : null;
+
+            const retentionEntitlements =
+              retentionEntity === "user" && retentionEntityId
+                ? await billing
+                    .getEntitlements(
+                      retentionEntity,
+                      retentionEntityId,
+                      "synapse",
+                    )
+                    .catch(() => null)
+                : null;
+
+            const tier = (observer.plan ?? "free") as string;
+            const retentionDays = resolveRetentionDays(
+              retentionEntitlements,
+              tier,
+            );
+
+            const earliestAllowed = new Date(
+              Date.now() - retentionDays * 24 * 60 * 60 * 1000,
+            );
+
+            if (startDate < earliestAllowed) {
+              throw new GraphQLError(
+                `Your plan allows ${retentionDays} days of analytics history. Upgrade for longer retention`,
+                { extensions: { code: "QUOTA_EXCEEDED" } },
+              );
             }
 
             const conditions = [
@@ -177,6 +250,8 @@ const usageAggregationPlugin = makeExtendSchemaPlugin({
           usageEventTable,
           workspaceTable,
           authz,
+          billing,
+          resolveRetentionDays,
         ],
       ),
     },

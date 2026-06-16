@@ -113,6 +113,20 @@ const resolveKeyRoute = new Elysia().post(
       }
     }
 
+    // Enforce managed_keys_enabled entitlement for system-provisioned keys.
+    // Managed keys are auto-provisioned by other Omni apps (e.g. Beacon) and
+    // gated on the user's plan having managed-mode access.
+    if (apiKey.mode === "managed") {
+      const managedEntitlement = entitlements?.entitlements?.find(
+        (e) => e.featureKey === "managed_keys_enabled",
+      );
+
+      if (managedEntitlement && Number(managedEntitlement.value) === 0) {
+        set.status = 403;
+        return { error: "managed_keys_not_enabled" };
+      }
+    }
+
     let providerKeys: { provider: string; decryptedKey: string }[] = [];
 
     if (apiKey.mode === "byok") {

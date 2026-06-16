@@ -7,6 +7,7 @@ import { GraphQLError } from "graphql";
 import { apiKeyTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
+import { logAuditEvent } from "lib/logging";
 import { authz, billing, events } from "lib/providers";
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
@@ -176,6 +177,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           eq,
           publish,
           events,
+          logAuditEvent,
         ) =>
           async function addWorkspace(
             _source: unknown,
@@ -285,6 +287,22 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               subject: workspace.id,
             });
 
+            // Audit log (gated by audit_logs entitlement)
+            void logAuditEvent(
+              {
+                organizationId,
+                userId: observer.id,
+                userIdpId: observer.identityProviderId,
+                workspaceId: workspace.id,
+              },
+              {
+                action: "workspace.created",
+                resource: "workspace",
+                resourceId: workspace.id,
+                details: { name, slug },
+              },
+            );
+
             return workspace;
           },
         [
@@ -298,6 +316,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           eq,
           publish,
           events,
+          logAuditEvent,
         ],
       ),
 
@@ -455,6 +474,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           isNull,
           publish,
           events,
+          logAuditEvent,
         ) =>
           async function removeWorkspace(
             _source: unknown,
@@ -521,6 +541,21 @@ const workspacesPlugin = makeExtendSchemaPlugin({
                 organizationId: deleted.organizationId,
                 subject: args.id,
               });
+
+              // Audit log (gated by audit_logs entitlement)
+              void logAuditEvent(
+                {
+                  organizationId: deleted.organizationId,
+                  userId: observer.id,
+                  userIdpId: observer.identityProviderId,
+                  workspaceId: args.id,
+                },
+                {
+                  action: "workspace.deleted",
+                  resource: "workspace",
+                  resourceId: args.id,
+                },
+              );
             }
 
             return !!deleted;
@@ -536,6 +571,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
           isNull,
           publish,
           events,
+          logAuditEvent,
         ],
       ),
     },
