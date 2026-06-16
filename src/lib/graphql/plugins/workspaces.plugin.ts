@@ -38,7 +38,7 @@ const assertOrgMembership = EXPORTABLE(
  * Assert the observer has a specific permission on an organization via Warden.
  * @param userId - The observer's database user ID
  * @param organizationId - The organization to check against
- * @param action - The required permission (e.g. "viewer", "editor", "admin")
+ * @param action - The required permission (e.g. "member", "admin", "owner")
  */
 const assertOrgPermission = EXPORTABLE(
   (authz, GraphQLError) =>
@@ -147,7 +147,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
             await assertOrgPermission(
               observer.id,
               args.organizationId,
-              "viewer",
+              "member",
             );
 
             return db
