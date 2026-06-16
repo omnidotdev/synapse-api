@@ -9,6 +9,7 @@ import { encrypt, generateApiKey } from "lib/crypto";
 import { apiKeyProviderTable, apiKeyTable, providerKeyTable, usageEventTable, userPreferenceTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
+import { logAuditEvent } from "lib/logging";
 import { billing, events } from "lib/providers";
 import { isVaultEnabled, listVaultKeys, providerToUUID, removeVaultKey, setVaultKey } from "lib/vault/client";
 import { sql } from "pg-sql2";
@@ -1335,6 +1336,7 @@ const pgConnectionFilterApplySingleRelation = (foreignTable, foreignTableExpress
     const remoteAttribute = remoteAttributes[i];
     $subQuery.where(sql`${$where.alias}.${sql.identifier(localAttribute)} = ${$subQuery.alias}.${sql.identifier(remoteAttribute)}`);
   });
+  $subQuery.ignoreUnlessAmended();
   return $subQuery;
 };
 function ApiKeyFilter_andApply($where, value) {
@@ -1550,6 +1552,7 @@ function ApiKeyToManyApiKeyProviderFilter_someApply($where, value) {
     const remoteAttribute = remoteAttributes[i];
     $subQuery.where(sql`${$where.alias}.${sql.identifier(localAttribute)} = ${$subQuery.alias}.${sql.identifier(remoteAttribute)}`);
   });
+  $subQuery.ignoreUnlessAmended();
   return $subQuery;
 }
 function ApiKeyToManyApiKeyProviderFilter_noneApply($where, value) {
@@ -1570,6 +1573,7 @@ function ApiKeyToManyApiKeyProviderFilter_noneApply($where, value) {
     const remoteAttribute = remoteAttributes[i];
     $subQuery.where(sql`${$where.alias}.${sql.identifier(localAttribute)} = ${$subQuery.alias}.${sql.identifier(remoteAttribute)}`);
   });
+  $subQuery.ignoreUnlessAmended();
   return $subQuery;
 }
 const ApiKeyOrderBy_ROW_ID_ASCApply = queryBuilder => {
@@ -1650,6 +1654,19 @@ const nodeFetcher_ApiKey = $nodeId => {
 const nodeFetcher_UsageEvent = $nodeId => {
   const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_UsageEvent));
   return nodeIdHandler_UsageEvent.get(nodeIdHandler_UsageEvent.getSpec($decoded));
+};
+const DEFAULT_RETENTION_DAYS = {
+  free: 7,
+  pro: 90,
+  team: 365
+};
+const resolveRetentionDays = (entitlements, tier) => {
+  const entry = entitlements?.entitlements?.find(e => e.featureKey === "analytics_retention_days");
+  if (entry?.value != null) {
+    const val = Number(String(entry.value).replace(/"/g, ""));
+    if (Number.isFinite(val)) return val === -1 ? 366 : val;
+  }
+  return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
 };
 const assertOrgMembership = async (observerIdpId, organizationId) => {
   if (!(await validateOrgMembership(observerIdpId, organizationId))) throw new GraphQLError("Not a member of this organization", {
@@ -3663,6 +3680,17 @@ export const objects = {
               code: "BAD_USER_INPUT"
             }
           });
+          const retentionEntity = args.workspaceId ? "organization" : "user",
+            retentionEntityId = retentionEntity === "user" ? observer.identityProviderId ?? observer.id : null,
+            retentionEntitlements = retentionEntity === "user" && retentionEntityId ? await billing.getEntitlements(retentionEntity, retentionEntityId, "synapse").catch(() => null) : null,
+            tier = observer.plan ?? "free",
+            retentionDays = resolveRetentionDays(retentionEntitlements, tier),
+            earliestAllowed = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+          if (startDate < earliestAllowed) throw new GraphQLError(`Your plan allows ${retentionDays} days of analytics history. Upgrade for longer retention`, {
+            extensions: {
+              code: "QUOTA_EXCEEDED"
+            }
+          });
           const conditions = [eq(usageEventTable.userId, observer.id), gte(usageEventTable.createdAt, args.startDate), lte(usageEventTable.createdAt, args.endDate)];
           if (args.workspaceId) {
             const [workspace] = await db.select({
@@ -3899,6 +3927,20 @@ export const objects = {
             organizationId,
             subject: workspace.id
           });
+          logAuditEvent({
+            organizationId,
+            userId: observer.id,
+            userIdpId: observer.identityProviderId,
+            workspaceId: workspace.id
+          }, {
+            action: "workspace.created",
+            resource: "workspace",
+            resourceId: workspace.id,
+            details: {
+              name,
+              slug
+            }
+          });
           return workspace;
         },
         subscribe: undefined
@@ -3972,6 +4014,20 @@ export const objects = {
             subject: observer.id,
             data: {
               apiKeyId: apiKey.id,
+              name,
+              mode,
+              workspaceId: workspaceId ?? null
+            }
+          });
+          logAuditEvent({
+            userId: observer.id,
+            userIdpId: observer.identityProviderId,
+            workspaceId: workspaceId ?? void 0
+          }, {
+            action: "api_key.created",
+            resource: "api_key",
+            resourceId: apiKey.id,
+            details: {
               name,
               mode,
               workspaceId: workspaceId ?? null
@@ -4226,6 +4282,16 @@ export const objects = {
               organizationId: deleted.organizationId,
               subject: args.id
             });
+            logAuditEvent({
+              organizationId: deleted.organizationId,
+              userId: observer.id,
+              userIdpId: observer.identityProviderId,
+              workspaceId: args.id
+            }, {
+              action: "workspace.deleted",
+              resource: "workspace",
+              resourceId: args.id
+            });
           }
           return !!deleted;
         },
@@ -4260,15 +4326,25 @@ export const objects = {
             revokedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }).where(and(eq(apiKeyTable.id, args.id), eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt))).returning();
-          if (updated) publish({
-            type: "synapse.api_key.revoked",
-            source: "omni.synapse",
-            organizationId: observer.id,
-            subject: observer.id,
-            data: {
-              apiKeyId: args.id
-            }
-          });
+          if (updated) {
+            publish({
+              type: "synapse.api_key.revoked",
+              source: "omni.synapse",
+              organizationId: observer.id,
+              subject: observer.id,
+              data: {
+                apiKeyId: args.id
+              }
+            });
+            logAuditEvent({
+              userId: observer.id,
+              userIdpId: observer.identityProviderId
+            }, {
+              action: "api_key.revoked",
+              resource: "api_key",
+              resourceId: args.id
+            });
+          }
           return !!updated;
         },
         subscribe: undefined

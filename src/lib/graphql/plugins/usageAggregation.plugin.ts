@@ -21,23 +21,24 @@ const DEFAULT_RETENTION_DAYS: Record<string, number> = {
  * payload. Falls back to free-tier (7 days) when the entitlement is absent.
  * A value of -1 means unlimited (treated as 366 days, the max supported range).
  */
-const resolveRetentionDays = (
-  entitlements: EntitlementsResponse | null,
-  tier: string,
-): number => {
-  const entry = entitlements?.entitlements?.find(
-    (e) => e.featureKey === "analytics_retention_days",
-  );
+const resolveRetentionDays = EXPORTABLE(
+  (DEFAULT_RETENTION_DAYS) =>
+    (entitlements: EntitlementsResponse | null, tier: string): number => {
+      const entry = entitlements?.entitlements?.find(
+        (e) => e.featureKey === "analytics_retention_days",
+      );
 
-  if (entry?.value != null) {
-    const val = Number(String(entry.value).replace(/"/g, ""));
-    if (Number.isFinite(val)) {
-      return val === -1 ? 366 : val;
-    }
-  }
+      if (entry?.value != null) {
+        const val = Number(String(entry.value).replace(/"/g, ""));
+        if (Number.isFinite(val)) {
+          return val === -1 ? 366 : val;
+        }
+      }
 
-  return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
-};
+      return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
+    },
+  [DEFAULT_RETENTION_DAYS],
+);
 
 /**
  * Usage aggregation queries for charts and breakdowns

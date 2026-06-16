@@ -26,6 +26,7 @@ import {
 } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
+import { logAuditEvent } from "lib/logging";
 import { authz, billing, events } from "lib/providers";
 import {
   isVaultEnabled,
@@ -129,6 +130,7 @@ const generateGraphqlSchema = async () => {
       },
       "lib/events/publisher": { publish },
       "lib/idp": { validateOrgMembership },
+      "lib/logging": { logAuditEvent },
       "lib/providers": { authz, billing, events },
       "lib/vault/client": {
         isVaultEnabled,
