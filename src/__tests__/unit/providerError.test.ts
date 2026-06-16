@@ -31,23 +31,35 @@ const resolveProviderKeys = (identityProviderId: string, secret?: string) =>
 const ctx = setupTestContext();
 
 describe("resolveProviderKeys - provider error events", () => {
-	test("returns 500 with key_decryption_failed when key decryption fails", async () => {
-		// Create a user and a provider key with invalid ciphertext so decrypt() throws
+	test("skips keys that fail to decrypt and resolves the rest", async () => {
+		// A user with one valid key and one key whose ciphertext is invalid.
+		// The undecryptable key must be skipped (logged) without failing the
+		// whole request, so the remaining valid key still resolves.
 		const user = await userFactory.create(ctx.db);
 
 		await providerKeyFactory.create(ctx.db, {
 			userId: user.id,
 			provider: "anthropic",
+			encryptedKey: encrypt("sk-ant-valid-key"),
+			keyHint: "-key",
+		});
+
+		await providerKeyFactory.create(ctx.db, {
+			userId: user.id,
+			provider: "openai",
 			// Deliberately invalid ciphertext, decrypt() will throw
 			encryptedKey: "not-valid-encrypted-data",
 			keyHint: "xxxx",
 		});
 
 		const res = await resolveProviderKeys(user.identityProviderId, GATEWAY_SECRET);
-		expect(res.status).toBe(500);
+		expect(res.status).toBe(200);
 
 		const body = await res.json();
-		expect(body.error).toBe("key_decryption_failed");
+		// Only the decryptable key is returned; the bad one is silently skipped
+		expect(body.providerKeys).toHaveLength(1);
+		expect(body.providerKeys[0].provider).toBe("anthropic");
+		expect(body.providerKeys[0].decryptedKey).toBe("sk-ant-valid-key");
 	});
 
 	test("does not error on successful key resolution", async () => {
