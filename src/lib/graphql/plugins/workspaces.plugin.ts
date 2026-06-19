@@ -10,6 +10,7 @@ import { validateOrgMembership } from "lib/idp";
 import { logAuditEvent } from "lib/logging";
 import { authz, billing, events } from "lib/providers";
 
+import type { WardenRelation } from "@omnidotdev/providers";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
 /**
@@ -42,7 +43,11 @@ const assertOrgMembership = EXPORTABLE(
  */
 const assertOrgPermission = EXPORTABLE(
   (authz, GraphQLError) =>
-    async (userId: string, organizationId: string, action: string) => {
+    async (
+      userId: string,
+      organizationId: string,
+      action: WardenRelation<"organization">,
+    ) => {
       if (!authz) return;
 
       const allowed = await authz.checkPermission(
