@@ -44,7 +44,13 @@ import {
   usageRoute,
 } from "lib/routes";
 
-const commit = (() => { try { return readFileSync("/app/.git-sha", "utf-8").trim(); } catch { return "unknown"; } })();
+const commit = (() => {
+  try {
+    return readFileSync("/app/.git-sha", "utf-8").trim();
+  } catch {
+    return "unknown";
+  }
+})();
 
 // Warn if authZ is enabled but the API URL is missing (fail-open risk)
 if (!AUTHZ_API_URL) {
