@@ -9,7 +9,7 @@ import { Elysia } from "elysia";
 
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { encrypt, generateApiKey } from "lib/crypto";
-import { apiKeyProviderTable } from "lib/db/schema";
+import { apiKeyProviderTable, usageEventTable } from "lib/db/schema";
 import { billing } from "lib/providers";
 import resolveKeyRoute from "lib/routes/resolveKey";
 import { apiKeyFactory, providerKeyFactory, userFactory } from "test/factories";
@@ -384,6 +384,177 @@ describe("POST /internal/resolve-key", () => {
 
 		const body = await res.json();
 		expect(body.mode).toBe("managed");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	/** Seed `count` usage events for a user/api key in the current month */
+	const seedUsageEvents = async (
+		userId: string,
+		apiKeyId: string,
+		count: number,
+	) => {
+		if (count === 0) return;
+
+		// Insert in chunks to stay under Postgres's bind-parameter limit (65,535);
+		// each row carries 8 non-default columns, so 2,000 rows == 16,000 params
+		const chunkSize = 2_000;
+
+		for (let inserted = 0; inserted < count; inserted += chunkSize) {
+			const batch = Math.min(chunkSize, count - inserted);
+
+			await ctx.db.insert(usageEventTable).values(
+				Array.from({ length: batch }, () => ({
+					userId,
+					apiKeyId,
+					provider: "anthropic",
+					model: "claude-3-5-sonnet",
+					inputTokens: 10,
+					outputTokens: 10,
+					costCents: 1,
+					mode: "byok",
+				})),
+			);
+		}
+	};
+
+	test("rejects with 429 when free tier monthly request limit is exceeded", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		// Free tier hard cap is 10,000 requests/month (no overage). Seed at the cap
+		// to exercise the count path (chunked to respect the bind-parameter limit)
+		await seedUsageEvents(user.id, apiKey.id, 10_000);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(429);
+
+		const body = await res.json();
+		expect(body.error).toBe("monthly_request_limit_exceeded");
+		expect(body.limit).toBe(10_000);
+		expect(body.current).toBe(10_000);
+	});
+
+	test("allows free tier when under the monthly request limit", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		await seedUsageEvents(user.id, apiKey.id, 5);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+	});
+
+	test("allows over-limit requests when tier permits overage", async () => {
+		const user = await userFactory.create(ctx.db, { plan: "pro" });
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		// Pro tier permits overage (overage_rate_per_1k = 20), so being over the
+		// 100,000 limit must NOT block; mock entitlements to assert the overage path
+		// without seeding 100k rows
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "pro" },
+				{ featureKey: "max_requests_per_month", value: 1 },
+				{ featureKey: "overage_rate_per_1k", value: 20 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		// Two events puts the user over the mocked limit of 1
+		await seedUsageEvents(user.id, apiKey.id, 2);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("rejects over-limit requests when tier has no overage", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		// Entitlement caps at 1 request/month with no overage -> hard cap
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "max_requests_per_month", value: 1 },
+				{ featureKey: "overage_rate_per_1k", value: 0 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		await seedUsageEvents(user.id, apiKey.id, 2);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(429);
+
+		const body = await res.json();
+		expect(body.error).toBe("monthly_request_limit_exceeded");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("allows team tier (unlimited requests) regardless of usage", async () => {
+		const user = await userFactory.create(ctx.db, { plan: "team" });
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "team" },
+				{ featureKey: "max_requests_per_month", value: -1 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		await seedUsageEvents(user.id, apiKey.id, 50);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.plan).toBe("team");
 
 		getEntitlementsSpy.mockRestore();
 	});

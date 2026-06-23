@@ -1,14 +1,20 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { isWithinLimit } from "@omnidotdev/providers/billing";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
+import {
+  PLAN_REQUEST_LIMITS,
+  REQUEST_LIMITS_FALLBACK,
+} from "lib/config/requestLimits.config";
 import { constantTimeEqual, decrypt, hashApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
 import {
   apiKeyProviderTable,
   apiKeyTable,
   providerKeyTable,
+  usageEventTable,
   userTable,
 } from "lib/db/schema";
 import { billing } from "lib/providers";
@@ -124,6 +130,62 @@ const resolveKeyRoute = new Elysia().post(
       if (managedEntitlement && Number(managedEntitlement.value) === 0) {
         set.status = 403;
         return { error: "managed_keys_not_enabled" };
+      }
+    }
+
+    // Enforce max_requests_per_month metered quota (the core revenue control).
+    // Count this user's requests for the current calendar month (one usage_event
+    // row == one proxied request) and compare against the tier limit. When the
+    // tier permits overage (overage_rate_per_1k > 0) requests are allowed through
+    // and billed as overage via Aether; otherwise the quota is a hard cap and the
+    // request is rejected. The gateway caches resolve results for a short TTL and
+    // reports usage asynchronously, so this check is approximate at TTL/flush
+    // granularity, which is acceptable for a monthly quota
+    const startOfMonth = new Date();
+    startOfMonth.setUTCDate(1);
+    startOfMonth.setUTCHours(0, 0, 0, 0);
+
+    const [monthlyUsage] = await dbPool
+      .select({
+        requestCount: sql<number>`count(*)::int`,
+      })
+      .from(usageEventTable)
+      .where(
+        and(
+          eq(usageEventTable.userId, apiKey.userId),
+          gte(usageEventTable.createdAt, startOfMonth.toISOString()),
+        ),
+      );
+
+    const monthlyRequests = monthlyUsage?.requestCount ?? 0;
+
+    const withinRequestQuota = isWithinLimit(
+      entitlements,
+      "max_requests_per_month",
+      monthlyRequests,
+      REQUEST_LIMITS_FALLBACK,
+    );
+
+    if (!withinRequestQuota) {
+      // Resolve whether this tier permits billable overage. Prefer the Aether
+      // entitlement value, falling back to the SSOT-mirrored config
+      const overageEntitlement = entitlements?.entitlements?.find(
+        (e) => e.featureKey === "overage_rate_per_1k",
+      );
+      const overageRatePer1k =
+        overageEntitlement?.value !== undefined
+          ? Number(overageEntitlement.value)
+          : (PLAN_REQUEST_LIMITS[plan] ?? PLAN_REQUEST_LIMITS.free)
+              .overageRatePer1k;
+
+      if (!overageRatePer1k || overageRatePer1k <= 0) {
+        // Hard cap: reject the request with a clear over-limit response
+        set.status = 429;
+        return {
+          error: "monthly_request_limit_exceeded",
+          limit: REQUEST_LIMITS_FALLBACK.max_requests_per_month[plan],
+          current: monthlyRequests,
+        };
       }
     }
 
