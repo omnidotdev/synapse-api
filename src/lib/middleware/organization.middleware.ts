@@ -32,7 +32,9 @@ interface OrganizationContext {
 const organizationMiddleware = new Elysia({
   name: "organization-middleware",
 }).derive({ as: "scoped" }, async ({ params, set, store }) => {
-  const { orgSlug } = params as { orgSlug?: string };
+  // params is null/undefined on routes without path params (e.g. /graphql), so
+  // guard before destructuring to avoid a 500 on those requests
+  const { orgSlug } = (params ?? {}) as { orgSlug?: string };
 
   // skip if not an org-scoped route
   if (!orgSlug) {
