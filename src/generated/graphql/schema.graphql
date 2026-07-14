@@ -1,0 +1,1819 @@
+"""An object with a globally unique `ID`."""
+interface Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+}
+
+type ApiKeyProvider implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  apiKeyId: UUID!
+  providerKeyId: UUID!
+  createdAt: Datetime
+
+  """Reads a single `ApiKey` that is related to this `ApiKeyProvider`."""
+  apiKey: ApiKey
+
+  """Reads a single `ProviderKey` that is related to this `ApiKeyProvider`."""
+  providerKey: ProviderKey
+}
+
+"""
+A universally unique identifier as defined by [RFC 4122](https://tools.ietf.org/html/rfc4122).
+"""
+scalar UUID
+
+"""
+A point in time as described by the [ISO
+8601](https://en.wikipedia.org/wiki/ISO_8601) and, if it has a timezone, [RFC
+3339](https://datatracker.ietf.org/doc/html/rfc3339) standards. Input values
+that do not conform to both ISO 8601 and RFC 3339 may be coerced, which may lead
+to unexpected results.
+"""
+scalar Datetime
+
+type ApiKey implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  userId: UUID!
+  workspaceId: UUID
+  keyHash: String!
+  keyHint: String!
+  name: String!
+  mode: String!
+  lastUsedAt: Datetime
+  expiresAt: Datetime
+  revokedAt: Datetime
+  createdAt: Datetime
+  updatedAt: Datetime
+
+  """Reads a single `User` that is related to this `ApiKey`."""
+  user: User
+
+  """Reads and enables pagination through a set of `ApiKeyProvider`."""
+  apiKeyProviders(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyProviderCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyProviderFilter
+
+    """The method to use when ordering `ApiKeyProvider`."""
+    orderBy: [ApiKeyProviderOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyProviderConnection!
+
+  """Reads and enables pagination through a set of `UsageEvent`."""
+  usageEvents(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UsageEventCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UsageEventFilter
+
+    """The method to use when ordering `UsageEvent`."""
+    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UsageEventConnection!
+}
+
+type User implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  identityProviderId: UUID!
+  email: String
+  name: String
+  avatarUrl: String
+  plan: String!
+  createdAt: Datetime
+  updatedAt: Datetime
+
+  """Reads and enables pagination through a set of `ApiKey`."""
+  apiKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyFilter
+
+    """The method to use when ordering `ApiKey`."""
+    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyConnection!
+
+  """Reads and enables pagination through a set of `ProviderKey`."""
+  providerKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ProviderKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ProviderKeyFilter
+
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ProviderKeyConnection!
+
+  """Reads and enables pagination through a set of `UsageEvent`."""
+  usageEvents(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UsageEventCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UsageEventFilter
+
+    """The method to use when ordering `UsageEvent`."""
+    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UsageEventConnection!
+
+  """Reads a single `UserPreference` that is related to this `User`."""
+  userPreference: UserPreference
+}
+
+"""A connection to a list of `ApiKey` values."""
+type ApiKeyConnection {
+  """A list of `ApiKey` objects."""
+  nodes: [ApiKey]!
+
+  """
+  A list of edges which contains the `ApiKey` and cursor to aid in pagination.
+  """
+  edges: [ApiKeyEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `ApiKey` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `ApiKey` edge in the connection."""
+type ApiKeyEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ApiKey` at the end of the edge."""
+  node: ApiKey
+}
+
+"""A location in a connection that can be used for resuming pagination."""
+scalar Cursor
+
+"""Information about pagination in a connection."""
+type PageInfo {
+  """When paginating forwards, are there more items?"""
+  hasNextPage: Boolean!
+
+  """When paginating backwards, are there more items?"""
+  hasPreviousPage: Boolean!
+
+  """When paginating backwards, the cursor to continue."""
+  startCursor: Cursor
+
+  """When paginating forwards, the cursor to continue."""
+  endCursor: Cursor
+}
+
+"""
+A condition to be used against `ApiKey` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input ApiKeyCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+
+  """Checks for equality with the object’s `keyHash` field."""
+  keyHash: String
+}
+
+"""
+A filter to be used against `ApiKey` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `userId` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s `keyHash` field."""
+  keyHash: StringFilter
+
+  """Filter by the object’s `apiKeyProviders` relation."""
+  apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
+
+  """Some related `apiKeyProviders` exist."""
+  apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s `usageEvents` relation."""
+  usageEvents: ApiKeyToManyUsageEventFilter
+
+  """Some related `usageEvents` exist."""
+  usageEventsExist: Boolean
+
+  """Filter by the object’s `user` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [ApiKeyFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ApiKeyFilter!]
+
+  """Negates the expression."""
+  not: ApiKeyFilter
+}
+
+"""
+A filter to be used against UUID fields. All fields are combined with a logical ‘and.’
+"""
+input UUIDFilter {
+  """
+  Is null (if `true` is specified) or is not null (if `false` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: UUID
+
+  """Not equal to the specified value."""
+  notEqualTo: UUID
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: UUID
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: UUID
+
+  """Included in the specified list."""
+  in: [UUID!]
+
+  """Not included in the specified list."""
+  notIn: [UUID!]
+
+  """Less than the specified value."""
+  lessThan: UUID
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: UUID
+
+  """Greater than the specified value."""
+  greaterThan: UUID
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: UUID
+}
+
+"""
+A filter to be used against String fields. All fields are combined with a logical ‘and.’
+"""
+input StringFilter {
+  """
+  Is null (if `true` is specified) or is not null (if `false` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: String
+
+  """Not equal to the specified value."""
+  notEqualTo: String
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: String
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: String
+
+  """Included in the specified list."""
+  in: [String!]
+
+  """Not included in the specified list."""
+  notIn: [String!]
+
+  """Less than the specified value."""
+  lessThan: String
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: String
+
+  """Greater than the specified value."""
+  greaterThan: String
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: String
+
+  """Contains the specified string (case-sensitive)."""
+  includes: String
+
+  """Does not contain the specified string (case-sensitive)."""
+  notIncludes: String
+
+  """Contains the specified string (case-insensitive)."""
+  includesInsensitive: String
+
+  """Does not contain the specified string (case-insensitive)."""
+  notIncludesInsensitive: String
+
+  """Starts with the specified string (case-sensitive)."""
+  startsWith: String
+
+  """Does not start with the specified string (case-sensitive)."""
+  notStartsWith: String
+
+  """Starts with the specified string (case-insensitive)."""
+  startsWithInsensitive: String
+
+  """Does not start with the specified string (case-insensitive)."""
+  notStartsWithInsensitive: String
+
+  """Ends with the specified string (case-sensitive)."""
+  endsWith: String
+
+  """Does not end with the specified string (case-sensitive)."""
+  notEndsWith: String
+
+  """Ends with the specified string (case-insensitive)."""
+  endsWithInsensitive: String
+
+  """Does not end with the specified string (case-insensitive)."""
+  notEndsWithInsensitive: String
+
+  """
+  Matches the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  like: String
+
+  """
+  Does not match the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  notLike: String
+
+  """
+  Matches the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  likeInsensitive: String
+
+  """
+  Does not match the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  notLikeInsensitive: String
+
+  """Equal to the specified value (case-insensitive)."""
+  equalToInsensitive: String
+
+  """Not equal to the specified value (case-insensitive)."""
+  notEqualToInsensitive: String
+
+  """
+  Not equal to the specified value, treating null like an ordinary value (case-insensitive).
+  """
+  distinctFromInsensitive: String
+
+  """
+  Equal to the specified value, treating null like an ordinary value (case-insensitive).
+  """
+  notDistinctFromInsensitive: String
+
+  """Included in the specified list (case-insensitive)."""
+  inInsensitive: [String!]
+
+  """Not included in the specified list (case-insensitive)."""
+  notInInsensitive: [String!]
+
+  """Less than the specified value (case-insensitive)."""
+  lessThanInsensitive: String
+
+  """Less than or equal to the specified value (case-insensitive)."""
+  lessThanOrEqualToInsensitive: String
+
+  """Greater than the specified value (case-insensitive)."""
+  greaterThanInsensitive: String
+
+  """Greater than or equal to the specified value (case-insensitive)."""
+  greaterThanOrEqualToInsensitive: String
+}
+
+"""
+A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyToManyApiKeyProviderFilter {
+  """
+  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyProviderFilter {
+  """Filter by the object’s `apiKeyId` field."""
+  apiKeyId: UUIDFilter
+
+  """Filter by the object’s `providerKeyId` field."""
+  providerKeyId: UUIDFilter
+
+  """Filter by the object’s `apiKey` relation."""
+  apiKey: ApiKeyFilter
+
+  """Filter by the object’s `providerKey` relation."""
+  providerKey: ProviderKeyFilter
+
+  """Checks for all expressions in this list."""
+  and: [ApiKeyProviderFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ApiKeyProviderFilter!]
+
+  """Negates the expression."""
+  not: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `ProviderKey` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `userId` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s `provider` field."""
+  provider: StringFilter
+
+  """Filter by the object’s `apiKeyProviders` relation."""
+  apiKeyProviders: ProviderKeyToManyApiKeyProviderFilter
+
+  """Some related `apiKeyProviders` exist."""
+  apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s `user` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [ProviderKeyFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ProviderKeyFilter!]
+
+  """Negates the expression."""
+  not: ProviderKeyFilter
+}
+
+"""
+A filter to be used against many `ApiKeyProvider` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyToManyApiKeyProviderFilter {
+  """
+  Every related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related `ApiKeyProvider` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against `User` object types. All fields are combined with a logical ‘and.’
+"""
+input UserFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `identityProviderId` field."""
+  identityProviderId: UUIDFilter
+
+  """Filter by the object’s `apiKeys` relation."""
+  apiKeys: UserToManyApiKeyFilter
+
+  """Some related `apiKeys` exist."""
+  apiKeysExist: Boolean
+
+  """Filter by the object’s `providerKeys` relation."""
+  providerKeys: UserToManyProviderKeyFilter
+
+  """Some related `providerKeys` exist."""
+  providerKeysExist: Boolean
+
+  """Filter by the object’s `usageEvents` relation."""
+  usageEvents: UserToManyUsageEventFilter
+
+  """Some related `usageEvents` exist."""
+  usageEventsExist: Boolean
+
+  """Filter by the object’s `userPreference` relation."""
+  userPreference: UserPreferenceFilter
+
+  """A related `userPreference` exists."""
+  userPreferenceExists: Boolean
+
+  """Checks for all expressions in this list."""
+  and: [UserFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UserFilter!]
+
+  """Negates the expression."""
+  not: UserFilter
+}
+
+"""
+A filter to be used against many `ApiKey` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyApiKeyFilter {
+  """
+  Every related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyFilter
+
+  """
+  Some related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyFilter
+
+  """
+  No related `ApiKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyFilter
+}
+
+"""
+A filter to be used against many `ProviderKey` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyProviderKeyFilter {
+  """
+  Every related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ProviderKeyFilter
+
+  """
+  Some related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ProviderKeyFilter
+
+  """
+  No related `ProviderKey` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ProviderKeyFilter
+}
+
+"""
+A filter to be used against many `UsageEvent` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyUsageEventFilter {
+  """
+  Every related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: UsageEventFilter
+
+  """
+  Some related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: UsageEventFilter
+
+  """
+  No related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: UsageEventFilter
+}
+
+"""
+A filter to be used against `UsageEvent` object types. All fields are combined with a logical ‘and.’
+"""
+input UsageEventFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `userId` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s `apiKeyId` field."""
+  apiKeyId: UUIDFilter
+
+  """Filter by the object’s `createdAt` field."""
+  createdAt: DatetimeFilter
+
+  """Filter by the object’s `apiKey` relation."""
+  apiKey: ApiKeyFilter
+
+  """Filter by the object’s `user` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [UsageEventFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UsageEventFilter!]
+
+  """Negates the expression."""
+  not: UsageEventFilter
+}
+
+"""
+A filter to be used against Datetime fields. All fields are combined with a logical ‘and.’
+"""
+input DatetimeFilter {
+  """
+  Is null (if `true` is specified) or is not null (if `false` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: Datetime
+
+  """Not equal to the specified value."""
+  notEqualTo: Datetime
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: Datetime
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: Datetime
+
+  """Included in the specified list."""
+  in: [Datetime!]
+
+  """Not included in the specified list."""
+  notIn: [Datetime!]
+
+  """Less than the specified value."""
+  lessThan: Datetime
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: Datetime
+
+  """Greater than the specified value."""
+  greaterThan: Datetime
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: Datetime
+}
+
+"""
+A filter to be used against `UserPreference` object types. All fields are combined with a logical ‘and.’
+"""
+input UserPreferenceFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `userId` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s `user` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [UserPreferenceFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UserPreferenceFilter!]
+
+  """Negates the expression."""
+  not: UserPreferenceFilter
+}
+
+"""
+A filter to be used against many `UsageEvent` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyToManyUsageEventFilter {
+  """
+  Every related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: UsageEventFilter
+
+  """
+  Some related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: UsageEventFilter
+
+  """
+  No related `UsageEvent` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: UsageEventFilter
+}
+
+"""Methods to use when ordering `ApiKey`."""
+enum ApiKeyOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+  KEY_HASH_ASC
+  KEY_HASH_DESC
+}
+
+"""A connection to a list of `ProviderKey` values."""
+type ProviderKeyConnection {
+  """A list of `ProviderKey` objects."""
+  nodes: [ProviderKey]!
+
+  """
+  A list of edges which contains the `ProviderKey` and cursor to aid in pagination.
+  """
+  edges: [ProviderKeyEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `ProviderKey` you could get from the connection."""
+  totalCount: Int!
+}
+
+type ProviderKey implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  userId: UUID!
+  provider: String!
+  encryptedKey: String!
+  keyHint: String!
+  modelPreference: String
+  createdAt: Datetime
+  updatedAt: Datetime
+
+  """Reads a single `User` that is related to this `ProviderKey`."""
+  user: User
+
+  """Reads and enables pagination through a set of `ApiKeyProvider`."""
+  apiKeyProviders(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyProviderCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyProviderFilter
+
+    """The method to use when ordering `ApiKeyProvider`."""
+    orderBy: [ApiKeyProviderOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyProviderConnection!
+}
+
+"""A connection to a list of `ApiKeyProvider` values."""
+type ApiKeyProviderConnection {
+  """A list of `ApiKeyProvider` objects."""
+  nodes: [ApiKeyProvider]!
+
+  """
+  A list of edges which contains the `ApiKeyProvider` and cursor to aid in pagination.
+  """
+  edges: [ApiKeyProviderEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `ApiKeyProvider` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `ApiKeyProvider` edge in the connection."""
+type ApiKeyProviderEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ApiKeyProvider` at the end of the edge."""
+  node: ApiKeyProvider
+}
+
+"""
+A condition to be used against `ApiKeyProvider` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input ApiKeyProviderCondition {
+  """Checks for equality with the object’s `apiKeyId` field."""
+  apiKeyId: UUID
+
+  """Checks for equality with the object’s `providerKeyId` field."""
+  providerKeyId: UUID
+}
+
+"""Methods to use when ordering `ApiKeyProvider`."""
+enum ApiKeyProviderOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  API_KEY_ID_ASC
+  API_KEY_ID_DESC
+  PROVIDER_KEY_ID_ASC
+  PROVIDER_KEY_ID_DESC
+}
+
+"""A `ProviderKey` edge in the connection."""
+type ProviderKeyEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `ProviderKey` at the end of the edge."""
+  node: ProviderKey
+}
+
+"""
+A condition to be used against `ProviderKey` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input ProviderKeyCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+
+  """Checks for equality with the object’s `provider` field."""
+  provider: String
+}
+
+"""Methods to use when ordering `ProviderKey`."""
+enum ProviderKeyOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+  PROVIDER_ASC
+  PROVIDER_DESC
+}
+
+"""A connection to a list of `UsageEvent` values."""
+type UsageEventConnection {
+  """A list of `UsageEvent` objects."""
+  nodes: [UsageEvent]!
+
+  """
+  A list of edges which contains the `UsageEvent` and cursor to aid in pagination.
+  """
+  edges: [UsageEventEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `UsageEvent` you could get from the connection."""
+  totalCount: Int!
+}
+
+type UsageEvent implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  userId: UUID!
+  workspaceId: UUID
+  apiKeyId: UUID!
+  provider: String!
+  model: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  costCents: Int!
+  mode: String!
+  createdAt: Datetime
+
+  """Reads a single `ApiKey` that is related to this `UsageEvent`."""
+  apiKey: ApiKey
+
+  """Reads a single `User` that is related to this `UsageEvent`."""
+  user: User
+}
+
+"""A `UsageEvent` edge in the connection."""
+type UsageEventEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `UsageEvent` at the end of the edge."""
+  node: UsageEvent
+}
+
+"""
+A condition to be used against `UsageEvent` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input UsageEventCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+
+  """Checks for equality with the object’s `apiKeyId` field."""
+  apiKeyId: UUID
+
+  """Checks for equality with the object’s `createdAt` field."""
+  createdAt: Datetime
+}
+
+"""Methods to use when ordering `UsageEvent`."""
+enum UsageEventOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+  API_KEY_ID_ASC
+  API_KEY_ID_DESC
+  CREATED_AT_ASC
+  CREATED_AT_DESC
+}
+
+type UserPreference implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  userId: UUID!
+  defaultProvider: String
+  notifyUsageThreshold: Boolean!
+  notifyKeyExpiry: Boolean!
+  updatedAt: Datetime
+
+  """Reads a single `User` that is related to this `UserPreference`."""
+  user: User
+}
+
+type Workspace implements Node {
+  """
+  A globally unique identifier. Can be used in various places throughout the system to identify this single value.
+  """
+  id: ID!
+  rowId: UUID!
+  organizationId: UUID!
+  slug: String!
+  name: String!
+  description: String
+  createdAt: Datetime
+  updatedAt: Datetime
+}
+
+"""A connection to a list of `Workspace` values."""
+type WorkspaceConnection {
+  """A list of `Workspace` objects."""
+  nodes: [Workspace]!
+
+  """
+  A list of edges which contains the `Workspace` and cursor to aid in pagination.
+  """
+  edges: [WorkspaceEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `Workspace` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `Workspace` edge in the connection."""
+type WorkspaceEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `Workspace` at the end of the edge."""
+  node: Workspace
+}
+
+"""
+A condition to be used against `Workspace` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input WorkspaceCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `organizationId` field."""
+  organizationId: UUID
+
+  """Checks for equality with the object’s `slug` field."""
+  slug: String
+}
+
+"""
+A filter to be used against `Workspace` object types. All fields are combined with a logical ‘and.’
+"""
+input WorkspaceFilter {
+  """Filter by the object’s `rowId` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s `organizationId` field."""
+  organizationId: UUIDFilter
+
+  """Filter by the object’s `slug` field."""
+  slug: StringFilter
+
+  """Checks for all expressions in this list."""
+  and: [WorkspaceFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [WorkspaceFilter!]
+
+  """Negates the expression."""
+  not: WorkspaceFilter
+}
+
+"""Methods to use when ordering `Workspace`."""
+enum WorkspaceOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  ORGANIZATION_ID_ASC
+  ORGANIZATION_ID_DESC
+  SLUG_ASC
+  SLUG_DESC
+}
+
+"""A connection to a list of `UserPreference` values."""
+type UserPreferenceConnection {
+  """A list of `UserPreference` objects."""
+  nodes: [UserPreference]!
+
+  """
+  A list of edges which contains the `UserPreference` and cursor to aid in pagination.
+  """
+  edges: [UserPreferenceEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `UserPreference` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `UserPreference` edge in the connection."""
+type UserPreferenceEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `UserPreference` at the end of the edge."""
+  node: UserPreference
+}
+
+"""
+A condition to be used against `UserPreference` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input UserPreferenceCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `userId` field."""
+  userId: UUID
+}
+
+"""Methods to use when ordering `UserPreference`."""
+enum UserPreferenceOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+}
+
+"""A connection to a list of `User` values."""
+type UserConnection {
+  """A list of `User` objects."""
+  nodes: [User]!
+
+  """
+  A list of edges which contains the `User` and cursor to aid in pagination.
+  """
+  edges: [UserEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* `User` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A `User` edge in the connection."""
+type UserEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The `User` at the end of the edge."""
+  node: User
+}
+
+"""
+A condition to be used against `User` object types. All fields are tested for equality and combined with a logical ‘and.’
+"""
+input UserCondition {
+  """Checks for equality with the object’s `rowId` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s `identityProviderId` field."""
+  identityProviderId: UUID
+}
+
+"""Methods to use when ordering `User`."""
+enum UserOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  IDENTITY_PROVIDER_ID_ASC
+  IDENTITY_PROVIDER_ID_DESC
+}
+
+type Observer {
+  id: UUID!
+  name: String!
+  email: String!
+
+  """
+  List active API keys for the current user, optionally filtered by workspace.
+  """
+  apiKeys(workspaceId: UUID): [ApiKeyInfo!]!
+
+  """Fetch current user's preferences."""
+  preferences: UserPreferences
+
+  """List provider keys for the current user."""
+  providerKeys: [ProviderKeyInfo!]!
+}
+
+input GenerateApiKeyInput {
+  name: String!
+  mode: String!
+  workspaceId: UUID
+}
+
+type GenerateApiKeyPayload {
+  rawKey: String!
+  apiKeyId: UUID!
+  keyHint: String!
+}
+
+type LinkedProviderInfo {
+  id: UUID!
+  provider: String!
+  keyHint: String!
+}
+
+type ApiKeyInfo {
+  id: UUID!
+  name: String!
+  keyHint: String!
+  mode: String!
+  createdAt: Datetime!
+  lastUsedAt: Datetime
+  expiresAt: Datetime
+  revokedAt: Datetime
+  linkedProviders: [LinkedProviderInfo!]!
+}
+
+input UpdateUserPreferencesInput {
+  defaultProvider: String
+  notifyUsageThreshold: Boolean
+  notifyKeyExpiry: Boolean
+}
+
+type UserPreferences {
+  defaultProvider: String
+  notifyUsageThreshold: Boolean!
+  notifyKeyExpiry: Boolean!
+}
+
+input SetProviderKeyInput {
+  provider: String!
+  key: String!
+}
+
+type ProviderKeyInfo {
+  id: UUID!
+  userId: UUID!
+  provider: String!
+  keyHint: String!
+  createdAt: Datetime
+  updatedAt: Datetime
+  modelPreference: String
+}
+
+type ModelBreakdown {
+  model: String!
+  provider: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  requests: Int!
+}
+
+type DailyUsage {
+  date: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  requests: Int!
+}
+
+type UsageBreakdown {
+  byModel: [ModelBreakdown!]!
+  byDay: [DailyUsage!]!
+}
+
+"""The root query type which gives access points into the data universe."""
+type Query implements Node {
+  """
+  Exposes the root query type nested one level down. This is helpful for Relay 1
+  which can only query top level fields if they are in a particular form.
+  """
+  query: Query!
+
+  """
+  The root query type must be a `Node` to work well with Relay 1 mutations. This just resolves to `query`.
+  """
+  id: ID!
+
+  """Fetches an object given its globally unique `ID`."""
+  node(
+    """The globally unique `ID`."""
+    id: ID!
+  ): Node
+
+  """Get a single `ApiKeyProvider`."""
+  apiKeyProvider(apiKeyId: UUID!, providerKeyId: UUID!): ApiKeyProvider
+
+  """Get a single `Workspace`."""
+  workspace(rowId: UUID!): Workspace
+
+  """Get a single `UserPreference`."""
+  userPreference(rowId: UUID!): UserPreference
+
+  """Get a single `UserPreference`."""
+  userPreferenceByUserId(userId: UUID!): UserPreference
+
+  """Get a single `ProviderKey`."""
+  providerKey(rowId: UUID!): ProviderKey
+
+  """Get a single `User`."""
+  user(rowId: UUID!): User
+
+  """Get a single `User`."""
+  userByIdentityProviderId(identityProviderId: UUID!): User
+
+  """Get a single `ApiKey`."""
+  apiKey(rowId: UUID!): ApiKey
+
+  """Get a single `ApiKey`."""
+  apiKeyByKeyHash(keyHash: String!): ApiKey
+
+  """Get a single `UsageEvent`."""
+  usageEvent(rowId: UUID!): UsageEvent
+
+  """Reads a single `ApiKeyProvider` using its globally unique `ID`."""
+  apiKeyProviderById(
+    """
+    The globally unique `ID` to be used in selecting a single `ApiKeyProvider`.
+    """
+    id: ID!
+  ): ApiKeyProvider
+
+  """Reads a single `Workspace` using its globally unique `ID`."""
+  workspaceById(
+    """The globally unique `ID` to be used in selecting a single `Workspace`."""
+    id: ID!
+  ): Workspace
+
+  """Reads a single `UserPreference` using its globally unique `ID`."""
+  userPreferenceById(
+    """
+    The globally unique `ID` to be used in selecting a single `UserPreference`.
+    """
+    id: ID!
+  ): UserPreference
+
+  """Reads a single `ProviderKey` using its globally unique `ID`."""
+  providerKeyById(
+    """
+    The globally unique `ID` to be used in selecting a single `ProviderKey`.
+    """
+    id: ID!
+  ): ProviderKey
+
+  """Reads a single `User` using its globally unique `ID`."""
+  userById(
+    """The globally unique `ID` to be used in selecting a single `User`."""
+    id: ID!
+  ): User
+
+  """Reads a single `ApiKey` using its globally unique `ID`."""
+  apiKeyById(
+    """The globally unique `ID` to be used in selecting a single `ApiKey`."""
+    id: ID!
+  ): ApiKey
+
+  """Reads a single `UsageEvent` using its globally unique `ID`."""
+  usageEventById(
+    """
+    The globally unique `ID` to be used in selecting a single `UsageEvent`.
+    """
+    id: ID!
+  ): UsageEvent
+
+  """Reads and enables pagination through a set of `ApiKeyProvider`."""
+  apiKeyProviders(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyProviderCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyProviderFilter
+
+    """The method to use when ordering `ApiKeyProvider`."""
+    orderBy: [ApiKeyProviderOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyProviderConnection
+
+  """Reads and enables pagination through a set of `Workspace`."""
+  workspaces(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: WorkspaceCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: WorkspaceFilter
+
+    """The method to use when ordering `Workspace`."""
+    orderBy: [WorkspaceOrderBy!] = [PRIMARY_KEY_ASC]
+  ): WorkspaceConnection
+
+  """Reads and enables pagination through a set of `UserPreference`."""
+  userPreferences(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UserPreferenceCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UserPreferenceFilter
+
+    """The method to use when ordering `UserPreference`."""
+    orderBy: [UserPreferenceOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UserPreferenceConnection
+
+  """Reads and enables pagination through a set of `ProviderKey`."""
+  providerKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ProviderKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ProviderKeyFilter
+
+    """The method to use when ordering `ProviderKey`."""
+    orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ProviderKeyConnection
+
+  """Reads and enables pagination through a set of `User`."""
+  users(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UserCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UserFilter
+
+    """The method to use when ordering `User`."""
+    orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UserConnection
+
+  """Reads and enables pagination through a set of `ApiKey`."""
+  apiKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyFilter
+
+    """The method to use when ordering `ApiKey`."""
+    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyConnection
+
+  """Reads and enables pagination through a set of `UsageEvent`."""
+  usageEvents(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: UsageEventCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: UsageEventFilter
+
+    """The method to use when ordering `UsageEvent`."""
+    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
+  ): UsageEventConnection
+
+  """The currently authenticated user. Returns null if not authenticated."""
+  observer: Observer
+
+  """
+  Aggregated usage breakdown by model and day for charts.
+  Optionally filter by workspaceId for workspace-scoped usage.
+  """
+  usageBreakdown(startDate: String!, endDate: String!, workspaceId: String): UsageBreakdown
+
+  """List workspaces for an organization"""
+  orgWorkspaces(organizationId: UUID!): [WorkspaceResult!]!
+}
+
+"""
+The root mutation type which contains root level fields which mutate data.
+"""
+type Mutation {
+  """Generate a new API key. The raw key is returned once and never stored."""
+  generateApiKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: GenerateApiKeyInput!
+  ): GenerateApiKeyPayload
+
+  """Revoke an API key by setting its revokedAt timestamp."""
+  revokeApiKey(id: UUID!): Boolean
+
+  """Link a provider key to an API key so requests use that provider."""
+  linkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
+
+  """Unlink a provider key from an API key."""
+  unlinkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
+
+  """Update user preferences. Creates preferences row if it doesn't exist."""
+  updateUserPreferences(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateUserPreferencesInput!
+  ): UserPreferences
+
+  """Encrypt and upsert a BYOK provider key."""
+  setProviderKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: SetProviderKeyInput!
+  ): ProviderKeyInfo
+
+  """Delete a provider key. Verifies ownership before deletion."""
+  removeProviderKey(id: UUID!): Boolean
+
+  """Create a new workspace within an organization"""
+  addWorkspace(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: NewWorkspaceInput!
+  ): WorkspaceResult
+
+  """Update a workspace's details"""
+  patchWorkspace(
+    id: UUID!
+
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: PatchWorkspaceInput!
+  ): WorkspaceResult
+
+  """Delete a workspace"""
+  removeWorkspace(id: UUID!): Boolean
+}
+
+input NewWorkspaceInput {
+  organizationId: UUID!
+  name: String!
+  slug: String!
+  description: String
+}
+
+input PatchWorkspaceInput {
+  name: String
+  slug: String
+  description: String
+}
+
+type WorkspaceResult {
+  id: UUID!
+  organizationId: UUID!
+  name: String!
+  slug: String!
+  description: String
+  createdAt: Datetime!
+}
