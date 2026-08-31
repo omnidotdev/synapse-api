@@ -86,18 +86,28 @@ const resolveKeyRoute = new Elysia().post(
       .getEntitlements("user", user.identityProviderId, "synapse")
       .catch(() => null);
 
-    if (plan === "free") {
-      const tierEntitlement = entitlements?.entitlements?.find(
+    // Reconcile the plan against the LIVE tier entitlement in BOTH directions.
+    // Previously this only ran when plan === "free" (upgrade only), so a stale
+    // "pro"/"team" left in user.plan after a cancel/downgrade was never
+    // corrected on the hot path, leaving a churned customer on elevated
+    // throttle limits and feature flags whenever the downgrade webhook was
+    // missed. Aether is authoritative, so derive the plan from its tier
+    // entitlement whenever aether is reachable; fall back to the persisted plan
+    // only when the lookup failed (entitlements === null).
+    if (entitlements) {
+      const tierEntitlement = entitlements.entitlements?.find(
         (e) => e.featureKey === "tier",
       );
-
-      if (
+      const livePlan = (
         tierEntitlement?.value &&
         ["pro", "team"].includes(String(tierEntitlement.value))
-      ) {
-        plan = String(tierEntitlement.value) as PlanTier;
+          ? String(tierEntitlement.value)
+          : "free"
+      ) as PlanTier;
 
-        // Backfill the DB so future lookups are fast
+      if (livePlan !== plan) {
+        plan = livePlan;
+        // Backfill the DB so future lookups are fast and consistent.
         dbPool
           .update(userTable)
           .set({ plan, updatedAt: new Date().toISOString() })
