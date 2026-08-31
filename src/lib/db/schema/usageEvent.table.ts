@@ -33,10 +33,16 @@ export const usageEventTable = pgTable(
     outputTokens: integer().notNull().default(0),
     costCents: integer().notNull().default(0),
     mode: text().notNull(),
+    // Idempotency key for at-least-once gateway delivery. Set to the client
+    // supplied event id when present, otherwise derived from the reported
+    // batch so a retried flush does not double-insert. Nullable so historical
+    // rows (predating this column) remain valid; new rows always set it
+    dedupeKey: text(),
     createdAt: generateDefaultDate(),
   },
   (table) => [
     uniqueIndex().on(table.id),
+    uniqueIndex().on(table.dedupeKey),
     index().on(table.userId),
     index().on(table.apiKeyId),
     index().on(table.createdAt),
