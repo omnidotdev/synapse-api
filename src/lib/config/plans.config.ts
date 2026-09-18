@@ -14,7 +14,7 @@ type PlanRateLimits = {
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
     requestsPerMinute: 60,
-    managedTokenBudget: 100_000, // ~$1 worth of tokens for free credits
+    managedTokenBudget: 0, // BYOK only on free tier (catalog SSOT: managed_token_budget = 0)
   },
   pro: {
     requestsPerMinute: 500,

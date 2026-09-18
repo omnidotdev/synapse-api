@@ -52,10 +52,17 @@ const commit = (() => {
   }
 })();
 
-// Warn if authZ is enabled but the API URL is missing (fail-open risk)
+// Authorization must be configured to boot in production. Refuse to start
+// rather than silently skipping org/workspace authorization checks (fail closed)
 if (!AUTHZ_API_URL) {
+  if (isProdEnv) {
+    throw new Error(
+      "[AuthZ] AUTHZ_API_URL is required in production, refusing to boot with authorization disabled",
+    );
+  }
+
   console.warn(
-    "[AuthZ] AUTHZ_ENABLED is true but AUTHZ_API_URL is not set, authorization checks will be skipped",
+    "[AuthZ] AUTHZ_API_URL is not set, authorization checks will be skipped (development only)",
   );
 }
 

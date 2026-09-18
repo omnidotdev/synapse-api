@@ -4,6 +4,7 @@ import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { MAX_PROVIDER_KEYS } from "lib/config/planLimits.config";
 import { encrypt } from "lib/crypto";
 import { providerKeyTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
@@ -18,9 +19,9 @@ import {
 
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
-// Fallback limits when Aether is unreachable
+// Fallback limits when Aether is unreachable (catalog SSOT mirror)
 const DEFAULT_LIMITS = {
-  max_provider_keys: { free: 6, pro: 10, team: -1 },
+  max_provider_keys: MAX_PROVIDER_KEYS,
 };
 
 /**

@@ -4,6 +4,8 @@ import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { isProdEnv } from "lib/config/env.config";
+import { MAX_WORKSPACES } from "lib/config/planLimits.config";
 import { apiKeyTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
@@ -42,13 +44,23 @@ const assertOrgMembership = EXPORTABLE(
  * @param action - The required permission (e.g. "member", "admin", "owner")
  */
 const assertOrgPermission = EXPORTABLE(
-  (authz, GraphQLError) =>
+  (authz, GraphQLError, isProdEnv) =>
     async (
       userId: string,
       organizationId: string,
       action: WardenRelation<"organization">,
     ) => {
-      if (!authz) return;
+      if (!authz) {
+        // Fail closed in production: an absent authz client must deny, never
+        // silently allow. In development it no-ops when unconfigured
+        if (isProdEnv) {
+          throw new GraphQLError("Insufficient permissions", {
+            extensions: { code: "FORBIDDEN" },
+          });
+        }
+
+        return;
+      }
 
       const allowed = await authz.checkPermission(
         userId,
@@ -63,12 +75,12 @@ const assertOrgPermission = EXPORTABLE(
         });
       }
     },
-  [authz, GraphQLError],
+  [authz, GraphQLError, isProdEnv],
 );
 
-// Fallback limits when Aether is unreachable
+// Fallback limits when Aether is unreachable (catalog SSOT mirror)
 const DEFAULT_LIMITS = {
-  max_workspaces: { free: 1, pro: 10, team: -1 },
+  max_workspaces: MAX_WORKSPACES,
 };
 
 /**
