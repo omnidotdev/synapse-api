@@ -42,7 +42,7 @@
     "msw"
   ],
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
+    "@biomejs/biome": "2.5.14",
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.0",
     "@faker-js/faker": "^10.5.0",
