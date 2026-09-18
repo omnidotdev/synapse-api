@@ -3,12 +3,16 @@
 // The issue is marked resolved but still hangs with Bun as of testcontainers v11.11.0
 
 const CONTAINER_LABEL = "synapse-api-test";
-const CONTAINER_NAME = "synapse-api-test-postgres";
 const POSTGRES_IMAGE = "postgres:16-alpine";
 const POSTGRES_USER = "test";
 const POSTGRES_PASSWORD = "test";
 const POSTGRES_DB = "synapse_api_test";
-const POSTGRES_PORT = "54320"; // Use non-standard port to avoid conflicts
+// Per-run container name and port so concurrent test runs (this repo and other
+// services on the same machine, or a leftover container from a prior run) never
+// collide on a fixed name or on port 54320.
+const RUN_ID = `${process.pid}-${Math.floor(Math.random() * 1e6)}`;
+const CONTAINER_NAME = `synapse-api-test-postgres-${RUN_ID}`;
+const POSTGRES_PORT = String(20000 + Math.floor(Math.random() * 40000));
 
 interface PostgresContainer {
   getConnectionUri: () => string;
