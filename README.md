@@ -64,6 +64,30 @@ bun dev
 | `bun db:seed` | Seed database with test data |
 | `bun db:studio` | Open Drizzle Studio |
 
+### Code Quality
+
+| Script | Description |
+|--------|-------------|
+| `bun check` | Lint and format check (Biome) |
+| `bun format` | Auto-format the codebase (Biome) |
+| `bun lint` | Lint only (Biome) |
+| `bun knip` | Detect unused files, exports, and dependencies |
+| `bunx tsc --noEmit` | Type-check without emitting output |
+
+## Diagnostics
+
+The server exposes two unauthenticated probes:
+
+- `GET /health` returns service status and the running commit.
+- `GET /ready` returns `200` when the database is reachable, `503` otherwise.
+
+```sh
+curl -k https://localhost:4000/health
+curl -k https://localhost:4000/ready
+```
+
+In development the server runs over TLS (see the certificate step above), so pass `-k` to `curl`. In production authorization is mandatory: the server refuses to boot when `AUTHZ_API_URL` is unset. Optional integrations (billing, event streaming, vault) log a warning and degrade gracefully when unconfigured.
+
 ## Docker
 
 Build and run with Docker:
