@@ -4,6 +4,8 @@ import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { isProdEnv } from "lib/config/env.config";
+import { MAX_API_KEYS } from "lib/config/planLimits.config";
 import { generateApiKey } from "lib/crypto";
 import {
   apiKeyProviderTable,
@@ -18,23 +20,32 @@ import { authz, billing } from "lib/providers";
 import type { WardenRelation } from "@omnidotdev/providers";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
 
-// Fallback limits when Aether is unreachable
+// Fallback limits when Aether is unreachable (catalog SSOT mirror)
 const DEFAULT_LIMITS = {
-  max_api_keys: { free: 3, pro: 25, team: -1 },
+  max_api_keys: MAX_API_KEYS,
 };
 
 /**
  * Assert the observer has a specific permission on an organization via Warden.
- * No-ops if Warden is not configured.
+ * Fails closed in production: if the authz client is absent the check denies
+ * rather than silently allowing. In development it no-ops when unconfigured.
  */
 const assertOrgPermission = EXPORTABLE(
-  (authz, GraphQLError) =>
+  (authz, GraphQLError, isProdEnv) =>
     async (
       userId: string,
       organizationId: string,
       action: WardenRelation<"organization">,
     ) => {
-      if (!authz) return;
+      if (!authz) {
+        if (isProdEnv) {
+          throw new GraphQLError("Insufficient permissions", {
+            extensions: { code: "FORBIDDEN" },
+          });
+        }
+
+        return;
+      }
 
       const allowed = await authz.checkPermission(
         userId,
@@ -49,7 +60,7 @@ const assertOrgPermission = EXPORTABLE(
         });
       }
     },
-  [authz, GraphQLError],
+  [authz, GraphQLError, isProdEnv],
 );
 
 /**

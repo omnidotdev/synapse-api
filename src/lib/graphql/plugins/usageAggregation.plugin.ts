@@ -3,18 +3,12 @@ import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { ANALYTICS_RETENTION_DAYS as DEFAULT_RETENTION_DAYS } from "lib/config/planLimits.config";
 import { usageEventTable, workspaceTable } from "lib/db/schema";
 import { authz, billing } from "lib/providers";
 
 import type { EntitlementsResponse } from "@omnidotdev/providers/billing";
 import type { GraphQLContext } from "lib/graphql/createGraphqlContext";
-
-// Fallback retention windows when Aether is unreachable (mirrors omni-api SSOT)
-const DEFAULT_RETENTION_DAYS: Record<string, number> = {
-  free: 7,
-  pro: 90,
-  team: 365,
-};
 
 /**
  * Resolve the analytics_retention_days entitlement for the given entitlements
