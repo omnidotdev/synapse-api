@@ -62,14 +62,7 @@ const resolveProviderKeysRoute = new Elysia().post(
 
     if (isVaultEnabled()) {
       // Resolve BYOK keys from Gatekeeper vault
-      const providers = [
-        "anthropic",
-        "openai",
-        "google",
-        "groq",
-        "mistral",
-        "openrouter",
-      ];
+      const providers = ["anthropic", "openai", "google", "groq", "mistral"];
       const vaultKeys = await resolveVaultKeys(
         body.identityProviderId,
         providers,
