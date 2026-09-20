@@ -28,19 +28,19 @@
         "drizzle-orm": "^0.45.2",
         "elysia": "^1.4.30",
         "elysia-rate-limit": "^4.6.3",
-        "grafast": "1.0.1",
+        "grafast": "1.1.3",
         "graphile-export": "1.0.1",
-        "graphile-utils": "5.0.1",
-        "graphql": "16.13.2",
+        "graphile-utils": "5.0.3",
+        "graphql": "16.14.2",
         "graphql-yoga": "^5.24.1",
         "jose": "^6.2.12",
         "ms": "^2.1.3",
         "pg": "^8.23.0",
-        "postgraphile": "5.0.3",
-        "postgraphile-plugin-connection-filter": "3.0.1",
+        "postgraphile": "5.1.5",
+        "postgraphile-plugin-connection-filter": "3.0.3",
       },
       "devDependencies": {
-        "@biomejs/biome": "2.5.3",
+        "@biomejs/biome": "2.5.14",
         "@changesets/changelog-github": "^0.7.0",
         "@changesets/cli": "^2.31.1",
         "@faker-js/faker": "^10.6.0",
@@ -63,9 +63,9 @@
     "@biomejs/biome",
   ],
   "overrides": {
-    "grafast": "1.0.1",
-    "graphql": "16.13.2",
-    "pg-sql2": "5.0.0-rc.5",
+    "grafast": "1.1.3",
+    "graphql": "16.14.2",
+    "pg-sql2": "5.0.1",
   },
   "packages": {
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
@@ -92,23 +92,23 @@
 
     "@balena/dockerignore": ["@balena/dockerignore@1.0.2", "", {}, "sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q=="],
 
-    "@biomejs/biome": ["@biomejs/biome@2.5.3", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.3", "@biomejs/cli-darwin-x64": "2.5.3", "@biomejs/cli-linux-arm64": "2.5.3", "@biomejs/cli-linux-arm64-musl": "2.5.3", "@biomejs/cli-linux-x64": "2.5.3", "@biomejs/cli-linux-x64-musl": "2.5.3", "@biomejs/cli-win32-arm64": "2.5.3", "@biomejs/cli-win32-x64": "2.5.3" }, "bin": { "biome": "bin/biome" } }, "sha512-MrJswFdei9EfDwwUy2tQrPDpK0AO+RmMFvBoaaJ6ayBc3sUbHdCE+XG5N8vp+5So41ZupZJQm0roHFFhMGVD7A=="],
+    "@biomejs/biome": ["@biomejs/biome@2.5.14", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.14", "@biomejs/cli-darwin-x64": "2.5.14", "@biomejs/cli-linux-arm64": "2.5.14", "@biomejs/cli-linux-arm64-musl": "2.5.14", "@biomejs/cli-linux-x64": "2.5.14", "@biomejs/cli-linux-x64-musl": "2.5.14", "@biomejs/cli-win32-arm64": "2.5.14", "@biomejs/cli-win32-x64": "2.5.14" }, "bin": { "biome": "bin/biome" } }, "sha512-0FabLIjd4M/dm8VFI86RMaLLdgepzbdfiAL2R8cr7V81OYYrP1w7Z73KfAwPK5h9SrEBXTzNG2y+mBwPo9xRnw=="],
 
-    "@biomejs/cli-darwin-arm64": ["@biomejs/cli-darwin-arm64@2.5.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-QhYP9muVQ0nUO5zztFuPbEwi4+94sJWVjaZds9aMi1l/KNZBiUjdiSUrGHsTaMGDXrYl+r4AS2sUKfgH3w+V3g=="],
+    "@biomejs/cli-darwin-arm64": ["@biomejs/cli-darwin-arm64@2.5.14", "", { "os": "darwin", "cpu": "arm64" }, "sha512-UnzaXO65L4tsZimFITFP2M121GyhDcWFrT3pL5ZJ5U4XcS/0L5VHYytVohdCf/gnDUFHgl2I9xnt5bV/J1kxHQ=="],
 
-    "@biomejs/cli-darwin-x64": ["@biomejs/cli-darwin-x64@2.5.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-NC1Ss13UaW7QZX+y8j44bF7AP0jSJdBl6iRhe0MAkvaSqZy+mWg3GaXsrb+eSoHoGDBtaXWEbMVV0iVN2cZ7cQ=="],
+    "@biomejs/cli-darwin-x64": ["@biomejs/cli-darwin-x64@2.5.14", "", { "os": "darwin", "cpu": "x64" }, "sha512-kiy8qA16K93J7uvFfWi4LgjqDpnRKyePAna6A0Y4jxyUga35SYpIZ2cNWlhy0lsfgqRenCpfymnJWEZ6mgpRgA=="],
 
-    "@biomejs/cli-linux-arm64": ["@biomejs/cli-linux-arm64@2.5.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-ksx1KWeyYW18ILL04msF/J4ZBtBDN33znYK8Z/aNv/vlBVxL9/g3mGP+omgHJKy4+KWbK87vcmmpmurfNjSgiA=="],
+    "@biomejs/cli-linux-arm64": ["@biomejs/cli-linux-arm64@2.5.14", "", { "os": "linux", "cpu": "arm64" }, "sha512-vO/9BaU1n30CiFNLx49gMTMtbCAAqlo/EqFoG0BU3deQInTbJrmXSmTQ9e3FoDZIKQnvSLDVNL4lx1ci7y1T1Q=="],
 
-    "@biomejs/cli-linux-arm64-musl": ["@biomejs/cli-linux-arm64-musl@2.5.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-fccix0w6xp6csCXgxeC0dU/3ecgRQal0y+cv2SP9ajNlhe7Yrk2Ug7UDe2j9AT9ZDYitkXpvUKgZjjuoYeP4Vg=="],
+    "@biomejs/cli-linux-arm64-musl": ["@biomejs/cli-linux-arm64-musl@2.5.14", "", { "os": "linux", "cpu": "arm64" }, "sha512-SJ9PrZkBnnH9dHJDnxk34vKs0GB2dbsioaft6/hPhWJ7AHpwYH83Isnhj0FSRpFkGgpVfJ1lds23ApB2czUDLQ=="],
 
-    "@biomejs/cli-linux-x64": ["@biomejs/cli-linux-x64@2.5.3", "", { "os": "linux", "cpu": "x64" }, "sha512-yMkJtilsgvILDcVkh187aVLTb64xYsrxYajx5kym+r1ULkO5HUOfu9AYKLGQbOVLwJtT2utNw7hhFNg+17mUYA=="],
+    "@biomejs/cli-linux-x64": ["@biomejs/cli-linux-x64@2.5.14", "", { "os": "linux", "cpu": "x64" }, "sha512-VHZRa7CCQBUWKxNwUvHJeuW03WFRgN5NWO//SDGOitc9QIeNyfA42V9zlKm+x82xFSG9Bzi5fi+hbhm9anO8yA=="],
 
-    "@biomejs/cli-linux-x64-musl": ["@biomejs/cli-linux-x64-musl@2.5.3", "", { "os": "linux", "cpu": "x64" }, "sha512-O/yU9YKRUiHhmcjF2f38PSjseVk3G4VLWYc0G2HWpzdBVREV6G8IGWIVEFf7MFPfWIzNUIvPsEjeAZQIOgnLcQ=="],
+    "@biomejs/cli-linux-x64-musl": ["@biomejs/cli-linux-x64-musl@2.5.14", "", { "os": "linux", "cpu": "x64" }, "sha512-2kI5PrMgW5dcEZYrstLPmUmCwkUwZY39rP4BN93Vxbwcs2O57LDQOktUZZYPvvspN5i0mhGr3TJtF5sU26NUWg=="],
 
-    "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.5.3", "", { "os": "win32", "cpu": "arm64" }, "sha512-cX5z+GYwRcqEok0AH3KSfQGgqYd0Nomfp6Fbe1uiTtELE38hdH2k842wQ9wLNaF/JJ7r4rjJQ4VR+ce+fRmQbw=="],
+    "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.5.14", "", { "os": "win32", "cpu": "arm64" }, "sha512-pHgAFffmZtaYoxavEsWEYNvcA7NwOIjLyqw2HXyLbt16xYryX0L4fMV2u0G9ag6LNYPIoqWaWqzUcnc6rLGGXg=="],
 
-    "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.3", "", { "os": "win32", "cpu": "x64" }, "sha512-ExSaJWi4/u6+GXCszlSKpWSjKNbDseAYqqkCznsCsZ/4uidZ/BEqsCc5/3ctlq6dfIubdIIRSVLC/PG9xPl70Q=="],
+    "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.14", "", { "os": "win32", "cpu": "x64" }, "sha512-oJWmBhoHsnhUKIke+0gXDX0mltJrWHA1UyHsrTlXwX0TL64ilVZAo+TYZm97baecV0esBdpzy3k96q+09JaZUQ=="],
 
     "@borewit/text-codec": ["@borewit/text-codec@0.2.2", "", {}, "sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ=="],
 
@@ -1020,7 +1020,7 @@
 
     "graceful-fs": ["graceful-fs@4.2.11", "", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
 
-    "grafast": ["grafast@1.0.1", "", { "dependencies": { "@graphile/lru": "^5.0.0", "chalk": "^4.1.2", "debug": "^4.4.3", "eventemitter3": "^5.0.1", "graphile-config": "^1.0.1", "graphql": "^16.9.0", "iterall": "^1.3.0", "tslib": "^2.8.1" }, "peerDependencies": { "@envelop/core": "^5.0.0" }, "optionalPeers": ["@envelop/core"] }, "sha512-UGq8T7ju4tTXjVHTQOgrdSiUcNrdeUy+mFDayLn2M87ZGQIXIMdadSmfGGCWhP3/Hc0z174l4VLq1tdG4I72mg=="],
+    "grafast": ["grafast@1.1.3", "", { "dependencies": { "@graphile/lru": "^5.0.0", "chalk": "^4.1.2", "debug": "^4.4.3", "eventemitter3": "^5.0.1", "graphile-config": "^1.1.1", "graphql": "^16.9.0", "iterall": "^1.3.0", "tslib": "^2.8.1" }, "peerDependencies": { "@envelop/core": "^5.0.0" }, "optionalPeers": ["@envelop/core"] }, "sha512-eGPcG5h5y0LgG5dhKr+/g5HhipHBJY/ovJKbqZmFwZNqAFUFwTftuPkoMGbyACCyaHUEQY83XCjkdGB1Fk3J6Q=="],
 
     "grafserv": ["grafserv@1.0.2", "", { "dependencies": { "@graphile/lru": "^5.0.0", "debug": "^4.4.3", "eventemitter3": "^5.0.1", "graphile-config": "^1.1.1", "graphql-ws": "^6.0.5", "ruru": "^2.0.2", "tslib": "^2.8.1" }, "peerDependencies": { "@envelop/core": "^5.0.0", "@whatwg-node/server": "^0.9.64", "grafast": "^1.0.0-rc.8", "graphql": "^16.9.0", "h3": "^1.13.0", "hono": "^4.6.15", "ws": "^8.12.1" }, "optionalPeers": ["@envelop/core", "@whatwg-node/server", "h3", "hono", "ws"] }, "sha512-tWtj1TUNjVmNLzTiXqigYWUFGkQquI2fcZ1X/ij+q3iXsLLxUlMyodd0d3JxcQTe3rGCE2D42e5glIqbHF/rGA=="],
 
@@ -1032,11 +1032,11 @@
 
     "graphile-export": ["graphile-export@1.0.1", "", { "dependencies": { "@babel/generator": "^7.28.5", "@babel/parser": "^7.28.5", "@babel/template": "^7.27.2", "@babel/traverse": "^7.28.5", "@babel/types": "^7.28.5", "@types/node": "^22.19.1", "prettier": "^3.6.2", "tslib": "^2.8.1" }, "peerDependencies": { "eslint": "^8.48.0 || ^9.26.0", "grafast": "^1.0.0-rc.8", "pg-sql2": "^5.0.0-rc.4" }, "optionalPeers": ["eslint", "pg-sql2"] }, "sha512-BfUtKfpAt0lHsIvT5ofA/ypQ2JZvlGNdf88ZQYN64g/GyQhk3/rjdk5EgXY1bLT2xZSxtvuu2YrSfQ85n940tA=="],
 
-    "graphile-utils": ["graphile-utils@5.0.1", "", { "dependencies": { "debug": "^4.4.3", "json5": "^2.2.3", "tslib": "^2.8.1" }, "peerDependencies": { "@dataplan/pg": "^1.0.0-rc.7", "grafast": "^1.0.0-rc.8", "graphile-build": "^5.0.0-rc.5", "graphile-build-pg": "^5.0.0-rc.7", "graphile-config": "^1.0.0-rc.5", "graphql": "^16.9.0", "tamedevil": "^0.1.0-rc.5" }, "optionalPeers": ["graphile-build-pg"] }, "sha512-FtJgxL2BDv1B417sOCsNdu1e3yZkZY7jPMlMHTvzcJLc/7o9rDh+ucJGDmLiKe5Z4lS8KXxVRLZWbxC56/RHcw=="],
+    "graphile-utils": ["graphile-utils@5.0.3", "", { "dependencies": { "debug": "^4.4.3", "json5": "^2.2.3", "tslib": "^2.8.1" }, "peerDependencies": { "@dataplan/pg": "^1.0.0-rc.7", "grafast": "^1.0.0-rc.8", "graphile-build": "^5.0.0-rc.5", "graphile-build-pg": "^5.0.0-rc.7", "graphile-config": "^1.0.0-rc.5", "graphql": "^16.9.0", "tamedevil": "^0.1.0-rc.5" }, "optionalPeers": ["graphile-build-pg"] }, "sha512-imT1voKDD6qGtlYVLfye9Wo33zgV8LzT7hPxF4SZMekx+iyEH8PmR4gWMqScMPfo69cL49zGwy+0hETAr9kXrg=="],
 
     "graphiql": ["graphiql@5.4.0", "", { "dependencies": { "@graphiql/plugin-doc-explorer": "^0.4.4", "@graphiql/plugin-history": "^0.4.4", "@graphiql/react": "^0.39.0", "react-compiler-runtime": "19.1.0-rc.1" }, "peerDependencies": { "graphql": "^15.5.0 || ^16.0.0 || ^17.0.0", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-8wmv8T1KqvKWm77ws3hkncio/dSkWlgrslee6GBgiN2h/x0LQNDn4jgG2OGPWiss/Gl5GHyH74kfeqDjcCXWRg=="],
 
-    "graphql": ["graphql@16.13.2", "", {}, "sha512-5bJ+nf/UCpAjHM8i06fl7eLyVC9iuNAjm9qzkiu2ZGhM0VscSvS6WDPfAwkdkBuoXGM9FJSbKl6wylMwP9Ktig=="],
+    "graphql": ["graphql@16.14.2", "", {}, "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA=="],
 
     "graphql-language-service": ["graphql-language-service@5.7.0", "", { "dependencies": { "debounce-promise": "^3.1.2", "nullthrows": "^1.0.0", "vscode-languageserver-types": "^3.17.1" }, "peerDependencies": { "graphql": "^15.5.0 || ^16.0.0 || ^17.0.0" }, "bin": { "graphql": "dist/temp-bin.js" } }, "sha512-5mwDb9HyHxMcO9RCLLieg6rC1u9XKJKWhFuvaZFJi3broQZDz1fcFNlm96UCMrIgI6MSsb9RwwqKKp2sZOZ9Gw=="],
 
@@ -1260,7 +1260,7 @@
 
     "pg-protocol": ["pg-protocol@1.16.0", "", {}, "sha512-sILXutLVjCLjcDuOmvhX5e2Z4cS5qG/6Bu3VkpFwdf/633ElGLpEh9bgmuI5I4sqKqkifQiGyiCcx1HdtrK7tg=="],
 
-    "pg-sql2": ["pg-sql2@5.0.0-rc.5", "", { "dependencies": { "@graphile/lru": "^5.0.0-rc.5", "tslib": "^2.8.1" } }, "sha512-shU7dHZ2Ju+Vc6uxwdjkz6KAwCDRTFfF4Sj4rhSa1u+CS4JYIub5w2ywWEpMyIy3SOwf+3gophbjs4z7DHlEjw=="],
+    "pg-sql2": ["pg-sql2@5.0.1", "", { "dependencies": { "@graphile/lru": "^5.0.0", "tslib": "^2.8.1" } }, "sha512-DdOZNUBhuBuGcq3UgUNsYE9FPdPzw9YA1K/WQxutNhC17DA/CImapyamv6lliVvdAVNZ+CWB1z+p7SmSJmkezw=="],
 
     "pg-types": ["pg-types@2.2.0", "", { "dependencies": { "pg-int8": "1.0.1", "postgres-array": "~2.0.0", "postgres-bytea": "~1.0.0", "postgres-date": "~1.0.4", "postgres-interval": "^1.1.0" } }, "sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA=="],
 
@@ -1276,9 +1276,9 @@
 
     "pluralize": ["pluralize@7.0.0", "", {}, "sha512-ARhBOdzS3e41FbkW/XWrTEtukqqLoK5+Z/4UeDaLuSW+39JPeFgs4gCGqsrJHVZX0fUrx//4OF0K1CUGwlIFow=="],
 
-    "postgraphile": ["postgraphile@5.0.3", "", { "dependencies": { "@dataplan/json": "^1.0.0", "@dataplan/pg": "^1.0.3", "@graphile/lru": "^5.0.0", "@types/node": "^22.19.1", "@types/pg": "^8.15.6", "debug": "^4.4.3", "grafast": "^1.0.2", "grafserv": "^1.0.0", "graphile-build": "^5.0.2", "graphile-build-pg": "^5.0.2", "graphile-config": "^1.0.1", "graphile-utils": "^5.0.1", "graphql": "^16.9.0", "iterall": "^1.3.0", "jsonwebtoken": "^9.0.2", "pg": "^8.16.3", "pg-sql2": "^5.0.1", "tamedevil": "^0.1.1", "tslib": "^2.8.1", "ws": "^8.18.3" }, "peerDependencies": { "@envelop/core": "^5.0.0" }, "optionalPeers": ["@envelop/core"], "bin": { "postgraphile": "dist/cli-run.js" } }, "sha512-gO8xOusrIykV65V1rmkqnUz3ZjDU+1y09uWruUshP+t811JFsEZsE7d3UJNjAxgrBcndU0CzgmEWCbvbD3kehA=="],
+    "postgraphile": ["postgraphile@5.1.5", "", { "dependencies": { "@dataplan/json": "^1.0.1", "@dataplan/pg": "^1.1.2", "@graphile/lru": "^5.0.0", "@types/node": "^22.19.1", "@types/pg": "^8.15.6", "debug": "^4.4.3", "grafast": "^1.1.3", "grafserv": "^1.0.2", "graphile-build": "^5.1.1", "graphile-build-pg": "^5.1.4", "graphile-config": "^1.1.1", "graphile-utils": "^5.0.3", "graphql": "^16.9.0", "iterall": "^1.3.0", "jsonwebtoken": "^9.0.2", "pg": "^8.16.3", "pg-sql2": "^5.0.1", "tamedevil": "^0.1.1", "tslib": "^2.8.1", "ws": "^8.18.3" }, "peerDependencies": { "@envelop/core": "^5.0.0" }, "optionalPeers": ["@envelop/core"], "bin": { "postgraphile": "dist/cli-run.js" } }, "sha512-2sT6pyzlkJJURcrGbVng4hEDVDHq2YuySbJVnEFABs6Nr6WGLOtxsNZs1i8iYroPkI2+OL3jArEt7A6tu+b0MA=="],
 
-    "postgraphile-plugin-connection-filter": ["postgraphile-plugin-connection-filter@3.0.1", "", { "dependencies": { "@tsconfig/node20": "^20.1.4", "tslib": "^2.5.0" }, "peerDependencies": { "postgraphile": "^5.0.3" }, "optionalPeers": ["postgraphile"] }, "sha512-x2SGQIz3u5Rl1gMumtmEa2S6WxmqjDgJIAeKN0ERNrlFsN2NxJc6VF825PP2P+QnpaGl31mQj4VjNSiSJubYlA=="],
+    "postgraphile-plugin-connection-filter": ["postgraphile-plugin-connection-filter@3.0.3", "", { "dependencies": { "@tsconfig/node20": "^20.1.4", "tslib": "^2.5.0" }, "peerDependencies": { "postgraphile": "^5.0.3" }, "optionalPeers": ["postgraphile"] }, "sha512-C6Q8uT2Abu8UEGTvJUWZ9PYnnu4FBzSXrBUNyebaVGyohvsPB5yOuMQGpIxoURHGB396F+SF+ImRogUeicz8wA=="],
 
     "postgres-array": ["postgres-array@3.0.4", "", {}, "sha512-nAUSGfSDGOaOAEGwqsRY27GPOea7CNipJPOA7lPbdEpx5Kg3qzdP0AaWC5MlhTWV9s4hFX39nomVZ+C4tnGOJQ=="],
 
@@ -1731,8 +1731,6 @@
     "path-scurry/lru-cache": ["lru-cache@10.4.3", "", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 
     "pg-types/postgres-array": ["postgres-array@2.0.0", "", {}, "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA=="],
-
-    "postgraphile/graphile-utils": ["graphile-utils@5.0.3", "", { "dependencies": { "debug": "^4.4.3", "json5": "^2.2.3", "tslib": "^2.8.1" }, "peerDependencies": { "@dataplan/pg": "^1.0.0-rc.7", "grafast": "^1.0.0-rc.8", "graphile-build": "^5.0.0-rc.5", "graphile-build-pg": "^5.0.0-rc.7", "graphile-config": "^1.0.0-rc.5", "graphql": "^16.9.0", "tamedevil": "^0.1.0-rc.5" }, "optionalPeers": ["graphile-build-pg"] }, "sha512-imT1voKDD6qGtlYVLfye9Wo33zgV8LzT7hPxF4SZMekx+iyEH8PmR4gWMqScMPfo69cL49zGwy+0hETAr9kXrg=="],
 
     "proper-lockfile/signal-exit": ["signal-exit@3.0.7", "", {}, "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="],
 
