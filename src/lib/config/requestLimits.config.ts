@@ -29,8 +29,8 @@ const PLAN_REQUEST_LIMITS: Record<PlanTier, PlanRequestLimit> = {
     overageRatePer1k: 20,
   },
   team: {
-    maxRequestsPerMonth: -1,
-    overageRatePer1k: 0,
+    maxRequestsPerMonth: 1_000_000,
+    overageRatePer1k: 10,
   },
 };
 
