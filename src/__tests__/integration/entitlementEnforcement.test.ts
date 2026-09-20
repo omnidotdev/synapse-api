@@ -407,7 +407,7 @@ describe("fallback limits match SSOT plan configs", () => {
 	const SSOT = {
 		free: { max_api_keys: 3, max_requests_per_month: 10_000 },
 		pro: { max_api_keys: 25, max_requests_per_month: 100_000 },
-		team: { max_api_keys: -1, max_requests_per_month: -1 },
+		team: { max_api_keys: -1, max_requests_per_month: 1_000_000 },
 	};
 
 	test("API key fallback limits match SSOT for all tiers", () => {
