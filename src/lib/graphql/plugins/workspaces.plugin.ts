@@ -29,7 +29,7 @@ const assertOrgMembership = EXPORTABLE(
       );
 
       if (!isMember) {
-        throw new GraphQLError("Not a member of this organization", {
+        throw new GraphQLError("Not a member of this workspace", {
           extensions: { code: "FORBIDDEN" },
         });
       }
@@ -439,7 +439,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
                 args.input.slug
               ) {
                 throw new GraphQLError(
-                  `Slug "${args.input.slug}" is already taken in this organization`,
+                  `Slug "${args.input.slug}" is already taken in this workspace`,
                   { extensions: { code: "CONFLICT" } },
                 );
               }
