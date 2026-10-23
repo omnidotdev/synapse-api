@@ -12,7 +12,7 @@
         "@envelop/parser-cache": "^10.2.1",
         "@envelop/validation-cache": "^10.2.1",
         "@escape.tech/graphql-armor": "^3.2.0",
-        "@graphile/simplify-inflection": "8.0.0",
+        "@graphile/simplify-inflection": "9.0.0",
         "@graphql-yoga/plugin-disable-introspection": "^2.25.1",
         "@iggy.rs/sdk": "^1.0.6",
         "@omnidotdev/providers": "github:omnidotdev/providers#1c99594",
@@ -276,7 +276,7 @@
 
     "@graphile/lru": ["@graphile/lru@5.0.0", "", { "dependencies": { "tslib": "^2.8.1" } }, "sha512-NeRBDdUd/l4H284HrYL2/wNHv/FmW5stAMPFAiBZanLHwq9J3suZTtyN5CwTxUFA/vgqzu0B1/9XtIEaJYEKig=="],
 
-    "@graphile/simplify-inflection": ["@graphile/simplify-inflection@8.0.0", "", {}, "sha512-fzC4zz456Km8oZQMiBU03kgSRQxT+aS3sEdEQIcvkfdUhJKlIk81ll8UaxLLkl/WRb7TByNM1VfrY9mEa4w9kw=="],
+    "@graphile/simplify-inflection": ["@graphile/simplify-inflection@9.0.0", "", {}, "sha512-oJmaC7z0JP6UvQ9eNAmu8wvvjHTkTpRIJswPNlVyd1M+Y2/qC2HydYKzz3p9AgiENEiFWctoBqbTMFxun8H7Lg=="],
 
     "@graphiql/plugin-doc-explorer": ["@graphiql/plugin-doc-explorer@0.4.4", "", { "dependencies": { "@headlessui/react": "^2.2", "react-compiler-runtime": "19.1.0-rc.1", "zustand": "^5" }, "peerDependencies": { "@graphiql/react": "^0.39.0", "graphql": "^15.5.0 || ^16.0.0 || ^17.0.0", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-N+AVh4KFjX8ooZUXj3jBPmz8rshXM0kIl+vV6TiyQgMZtGSpPohIn2NdSYc8ukRmZEfMzYT9gqLw4446SXz1lw=="],
 
