@@ -11,6 +11,10 @@ import type { PlanTier } from "lib/config/plans.config";
 
 const DEFAULT_KEY_SOURCE = "Managed";
 
+/** `identityProviderId` is a uuid() column, so reject non-UUIDs at the boundary. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Internal endpoint for auto-provisioning a managed API key
  *
@@ -31,6 +35,13 @@ const provisionKeyRoute = new Elysia().post(
       return { error: "unauthorized" };
     }
 
+    // identityProviderId maps to a uuid() column; validate at the boundary so a
+    // bad value returns a clean 400 instead of leaking a raw DB error
+    if (!UUID_RE.test(body.identityProviderId)) {
+      set.status = 400;
+      return { error: "identityProviderId must be a UUID" };
+    }
+
     // Upsert user via identityProviderId (same pattern as auth plugin)
     const insertedUser = {
       identityProviderId: body.identityProviderId,
@@ -40,17 +51,32 @@ const provisionKeyRoute = new Elysia().post(
 
     const { identityProviderId, ...rest } = insertedUser;
 
-    const [user] = await dbPool
-      .insert(userTable)
-      .values(insertedUser)
-      .onConflictDoUpdate({
-        target: userTable.identityProviderId,
-        set: {
-          ...rest,
-          updatedAt: new Date().toISOString(),
-        },
-      })
-      .returning();
+    let user: typeof userTable.$inferSelect | undefined;
+    try {
+      [user] = await dbPool
+        .insert(userTable)
+        .values(insertedUser)
+        .onConflictDoUpdate({
+          target: userTable.identityProviderId,
+          set: {
+            ...rest,
+            updatedAt: new Date().toISOString(),
+          },
+        })
+        .returning();
+    } catch (err) {
+      // Never leak a raw DB error to the caller; log server-side only
+      console.error(
+        `[provision-managed-key] user upsert failed: ${
+          err instanceof Error ? err.message : "unknown error"
+        }`,
+      );
+    }
+
+    if (!user) {
+      set.status = 500;
+      return { error: "provisioning failed" };
+    }
 
     // Check api_access entitlement before provisioning.
     // If Aether returns entitlements but api_access is explicitly revoked
@@ -75,41 +101,51 @@ const provisionKeyRoute = new Elysia().post(
     const { raw, hash, hint } = generateApiKey();
 
     // Upsert managed key inside a transaction to prevent duplicates
-    await dbPool.transaction(async (tx) => {
-      const [existingKey] = await tx
-        .select({ id: apiKeyTable.id })
-        .from(apiKeyTable)
-        .where(
-          and(
-            eq(apiKeyTable.userId, user.id),
-            eq(apiKeyTable.mode, "managed"),
-            eq(apiKeyTable.name, keyName),
-            isNull(apiKeyTable.revokedAt),
-          ),
-        )
-        .limit(1);
+    try {
+      await dbPool.transaction(async (tx) => {
+        const [existingKey] = await tx
+          .select({ id: apiKeyTable.id })
+          .from(apiKeyTable)
+          .where(
+            and(
+              eq(apiKeyTable.userId, user.id),
+              eq(apiKeyTable.mode, "managed"),
+              eq(apiKeyTable.name, keyName),
+              isNull(apiKeyTable.revokedAt),
+            ),
+          )
+          .limit(1);
 
-      if (existingKey) {
-        // Rotate: update the existing row with new key hash/hint
-        await tx
-          .update(apiKeyTable)
-          .set({
+        if (existingKey) {
+          // Rotate: update the existing row with new key hash/hint
+          await tx
+            .update(apiKeyTable)
+            .set({
+              keyHash: hash,
+              keyHint: hint,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(apiKeyTable.id, existingKey.id));
+        } else {
+          // Create new managed key
+          await tx.insert(apiKeyTable).values({
+            userId: user.id,
             keyHash: hash,
             keyHint: hint,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(apiKeyTable.id, existingKey.id));
-      } else {
-        // Create new managed key
-        await tx.insert(apiKeyTable).values({
-          userId: user.id,
-          keyHash: hash,
-          keyHint: hint,
-          name: keyName,
-          mode: "managed",
-        });
-      }
-    });
+            name: keyName,
+            mode: "managed",
+          });
+        }
+      });
+    } catch (err) {
+      console.error(
+        `[provision-managed-key] key upsert failed: ${
+          err instanceof Error ? err.message : "unknown error"
+        }`,
+      );
+      set.status = 500;
+      return { error: "provisioning failed" };
+    }
 
     const plan = (user.plan ?? "free") as PlanTier;
 

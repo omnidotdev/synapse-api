@@ -55,6 +55,18 @@ describe("POST /internal/provision-managed-key", () => {
 		expect(res.status).toBe(401);
 	});
 
+	test("returns a clean 400 for a non-UUID id (no raw DB-error leak)", async () => {
+		const res = await provisionKey(
+			{ identityProviderId: "not-a-uuid" },
+			GATEWAY_SECRET,
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json();
+		expect(body.error).toBe("identityProviderId must be a UUID");
+		// the raw DB error must never reach the caller
+		expect(JSON.stringify(body)).not.toContain("insert into");
+	});
+
 	test("managed key provisioning succeeds for existing user", async () => {
 		const user = await userFactory.create(ctx.db);
 
