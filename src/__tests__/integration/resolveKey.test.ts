@@ -9,7 +9,13 @@ import { Elysia } from "elysia";
 
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import { encrypt, generateApiKey } from "lib/crypto";
-import { apiKeyProviderTable, usageEventTable } from "lib/db/schema";
+import { eq } from "drizzle-orm";
+
+import {
+	apiKeyProviderTable,
+	usageEventTable,
+	userTable,
+} from "lib/db/schema";
 import { billing } from "lib/providers";
 import resolveKeyRoute from "lib/routes/resolveKey";
 import { apiKeyFactory, providerKeyFactory, userFactory } from "test/factories";
@@ -587,5 +593,129 @@ describe("POST /internal/resolve-key", () => {
 		const body = await res.json();
 		expect(body.mode).toBe("byok");
 		expect(body.providerKeys).toHaveLength(1);
+	});
+});
+
+describe("POST /internal/resolve-key (product-scoped keys)", () => {
+	/** Seed a managed key scoped to a downstream product's end user */
+	const seedProductKey = async (appId: string, entityId: string) => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "managed",
+			appId,
+			billingEntityType: "user",
+			billingEntityId: entityId,
+		});
+
+		return { user, apiKey, raw };
+	};
+
+	test("returns the product and billing entity so the gateway bills the product", async () => {
+		const entityId = crypto.randomUUID();
+		const { raw } = await seedProductKey("facet", entityId);
+
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements");
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.appId).toBe("facet");
+		expect(body.billingEntity).toEqual({ entityType: "user", entityId });
+		// Entitlements come from the product, never the user's Synapse account
+		expect(getEntitlementsSpy).toHaveBeenCalledWith("user", entityId, "facet");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("a legacy key carries no product scope", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "managed",
+		});
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.appId).toBeNull();
+		expect(body.billingEntity).toBeNull();
+	});
+
+	test("product usage is not charged against the user's Synapse monthly quota", async () => {
+		const { user, apiKey, raw } = await seedProductKey(
+			"facet",
+			crypto.randomUUID(),
+		);
+
+		// The user's own Synapse free tier is fully used; the product key is
+		// governed by the product's entitlements, so it still resolves
+		await ctx.db.insert(usageEventTable).values(
+			Array.from({ length: 2_000 }, () => ({
+				userId: user.id,
+				apiKeyId: apiKey.id,
+				provider: "anthropic",
+				model: "claude-3-5-sonnet",
+				inputTokens: 10,
+				outputTokens: 10,
+				costCents: 1,
+				mode: "managed",
+			})),
+		);
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			billingAccountId: "ba_1",
+			entityType: "user",
+			entityId: user.identityProviderId,
+			entitlementVersion: 1,
+			entitlements: [
+				{ id: "e1", featureKey: "max_requests_per_month", value: "1000" },
+			],
+		} as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("a product tier never overwrites the user's Synapse plan", async () => {
+		const entityId = crypto.randomUUID();
+		const { user, raw } = await seedProductKey("facet", entityId);
+
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			billingAccountId: "ba_1",
+			entityType: "user",
+			entityId,
+			entitlementVersion: 1,
+			entitlements: [{ id: "e1", featureKey: "tier", value: "pro" }],
+		} as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+		expect((await res.json()).plan).toBe("pro");
+
+		const [stored] = await ctx.db
+			.select({ plan: userTable.plan })
+			.from(userTable)
+			.where(eq(userTable.id, user.id));
+		expect(stored?.plan).toBe(user.plan);
+
+		getEntitlementsSpy.mockRestore();
 	});
 });

@@ -2,6 +2,7 @@ import { isWithinLimit } from "@omnidotdev/providers/billing";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
+import { storedProductScope } from "lib/billing/productScope";
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import {
@@ -20,7 +21,74 @@ import {
 import { billing } from "lib/providers";
 import { isVaultEnabled, resolveVaultKeys } from "lib/vault/client";
 
+import type { EntitlementsResponse } from "@omnidotdev/providers/billing";
+import type { ProductScope } from "lib/billing/productScope";
 import type { PlanTier } from "lib/config/plans.config";
+
+/**
+ * Enforce the direct-key `max_requests_per_month` quota (the core revenue
+ * control). Returns the rejection body, or `null` when the request may proceed.
+ *
+ * Counts this user's requests for the current calendar month (one usage_event
+ * row == one proxied request) and compares against the tier limit. When the
+ * tier permits overage (overage_rate_per_1k > 0) requests are allowed through
+ * and billed as overage via Aether; otherwise the quota is a hard cap and the
+ * request is rejected. The gateway caches resolve results for a short TTL and
+ * reports usage asynchronously, so this check is approximate at TTL/flush
+ * granularity, which is acceptable for a monthly quota
+ */
+const checkMonthlyRequestQuota = async (
+  userId: string,
+  entitlements: EntitlementsResponse | null,
+  plan: PlanTier,
+) => {
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+
+  const [monthlyUsage] = await dbPool
+    .select({
+      requestCount: sql<number>`count(*)::int`,
+    })
+    .from(usageEventTable)
+    .where(
+      and(
+        eq(usageEventTable.userId, userId),
+        gte(usageEventTable.createdAt, startOfMonth.toISOString()),
+      ),
+    );
+
+  const monthlyRequests = monthlyUsage?.requestCount ?? 0;
+
+  const withinRequestQuota = isWithinLimit(
+    entitlements,
+    "max_requests_per_month",
+    monthlyRequests,
+    REQUEST_LIMITS_FALLBACK,
+  );
+
+  if (withinRequestQuota) return null;
+
+  // Resolve whether this tier permits billable overage. Prefer the Aether
+  // entitlement value, falling back to the SSOT-mirrored config
+  const overageEntitlement = entitlements?.entitlements?.find(
+    (e) => e.featureKey === "overage_rate_per_1k",
+  );
+  const overageRatePer1k =
+    overageEntitlement?.value !== undefined
+      ? Number(overageEntitlement.value)
+      : (PLAN_REQUEST_LIMITS[plan] ?? PLAN_REQUEST_LIMITS.free)
+          .overageRatePer1k;
+
+  if (overageRatePer1k && overageRatePer1k > 0) return null;
+
+  // Hard cap: reject the request with a clear over-limit response
+  return {
+    error: "monthly_request_limit_exceeded",
+    limit: REQUEST_LIMITS_FALLBACK.max_requests_per_month[plan],
+    current: monthlyRequests,
+  };
+};
 
 /**
  * Internal endpoint for gateway API key resolution
@@ -80,11 +148,30 @@ const resolveKeyRoute = new Elysia().post(
       return { error: "user_not_found" };
     }
 
+    // A key provisioned by another Omni product bills that product's entity, so
+    // its entitlements, tier, and quota come from the product, not the user's
+    // own Synapse account
+    let scope: ProductScope | null;
+    try {
+      scope = storedProductScope(apiKey);
+    } catch (err) {
+      console.error(
+        `[resolve-key] ${err instanceof Error ? err.message : "invalid product scope"} (key ${apiKey.id})`,
+      );
+      set.status = 500;
+      return { error: "key_misconfigured" };
+    }
+
     // Fetch entitlements once for plan resolution and feature checks
     let plan = (user.plan ?? "free") as PlanTier;
-    const entitlements = await billing
-      .getEntitlements("user", user.identityProviderId, "synapse")
-      .catch(() => null);
+    const entitlements = await (scope
+      ? billing.getEntitlements(
+          scope.billingEntity.entityType,
+          scope.billingEntity.entityId,
+          scope.appId,
+        )
+      : billing.getEntitlements("user", user.identityProviderId, "synapse")
+    ).catch(() => null);
 
     // Reconcile the plan against the LIVE tier entitlement in BOTH directions.
     // Previously this only ran when plan === "free" (upgrade only), so a stale
@@ -107,13 +194,17 @@ const resolveKeyRoute = new Elysia().post(
 
       if (livePlan !== plan) {
         plan = livePlan;
-        // Backfill the DB so future lookups are fast and consistent.
-        dbPool
-          .update(userTable)
-          .set({ plan, updatedAt: new Date().toISOString() })
-          .where(eq(userTable.id, user.id))
-          .execute()
-          .catch(() => {});
+        // Backfill the DB so future lookups are fast and consistent. Only for
+        // direct keys: user.plan is the user's Synapse tier, and a product's
+        // tier must never overwrite it
+        if (!scope) {
+          dbPool
+            .update(userTable)
+            .set({ plan, updatedAt: new Date().toISOString() })
+            .where(eq(userTable.id, user.id))
+            .execute()
+            .catch(() => {});
+        }
       }
     }
 
@@ -143,59 +234,19 @@ const resolveKeyRoute = new Elysia().post(
       }
     }
 
-    // Enforce max_requests_per_month metered quota (the core revenue control).
-    // Count this user's requests for the current calendar month (one usage_event
-    // row == one proxied request) and compare against the tier limit. When the
-    // tier permits overage (overage_rate_per_1k > 0) requests are allowed through
-    // and billed as overage via Aether; otherwise the quota is a hard cap and the
-    // request is rejected. The gateway caches resolve results for a short TTL and
-    // reports usage asynchronously, so this check is approximate at TTL/flush
-    // granularity, which is acceptable for a monthly quota
-    const startOfMonth = new Date();
-    startOfMonth.setUTCDate(1);
-    startOfMonth.setUTCHours(0, 0, 0, 0);
-
-    const [monthlyUsage] = await dbPool
-      .select({
-        requestCount: sql<number>`count(*)::int`,
-      })
-      .from(usageEventTable)
-      .where(
-        and(
-          eq(usageEventTable.userId, apiKey.userId),
-          gte(usageEventTable.createdAt, startOfMonth.toISOString()),
-        ),
+    // A product-scoped key is metered by the gateway against the product's own
+    // Aether meters; usage_event counts the user's direct Synapse traffic, so the
+    // Synapse monthly quota below applies to direct keys only
+    if (!scope) {
+      const rejection = await checkMonthlyRequestQuota(
+        apiKey.userId,
+        entitlements,
+        plan,
       );
 
-    const monthlyRequests = monthlyUsage?.requestCount ?? 0;
-
-    const withinRequestQuota = isWithinLimit(
-      entitlements,
-      "max_requests_per_month",
-      monthlyRequests,
-      REQUEST_LIMITS_FALLBACK,
-    );
-
-    if (!withinRequestQuota) {
-      // Resolve whether this tier permits billable overage. Prefer the Aether
-      // entitlement value, falling back to the SSOT-mirrored config
-      const overageEntitlement = entitlements?.entitlements?.find(
-        (e) => e.featureKey === "overage_rate_per_1k",
-      );
-      const overageRatePer1k =
-        overageEntitlement?.value !== undefined
-          ? Number(overageEntitlement.value)
-          : (PLAN_REQUEST_LIMITS[plan] ?? PLAN_REQUEST_LIMITS.free)
-              .overageRatePer1k;
-
-      if (!overageRatePer1k || overageRatePer1k <= 0) {
-        // Hard cap: reject the request with a clear over-limit response
+      if (rejection) {
         set.status = 429;
-        return {
-          error: "monthly_request_limit_exceeded",
-          limit: REQUEST_LIMITS_FALLBACK.max_requests_per_month[plan],
-          current: monthlyRequests,
-        };
+        return rejection;
       }
     }
 
@@ -275,6 +326,10 @@ const resolveKeyRoute = new Elysia().post(
       plan,
       rateLimits,
       providerKeys,
+      // The gateway bills usage, credits, and entitlements against this product
+      // and entity; null for a direct key (gateway's own app, key owner)
+      appId: scope?.appId ?? null,
+      billingEntity: scope?.billingEntity ?? null,
     };
   },
   {

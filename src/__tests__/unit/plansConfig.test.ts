@@ -47,8 +47,9 @@ const CATALOG_SSOT = {
   },
   team: {
     monthlyPriceCents: 7_900,
-    max_requests_per_month: -1,
-    overage_rate_per_1k: 0,
+    // capped with overage in omni-api #44 (was unlimited)
+    max_requests_per_month: 1_000_000,
+    overage_rate_per_1k: 10,
     requests_per_minute: 2_000,
     max_api_keys: -1,
     max_provider_keys: -1,
