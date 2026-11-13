@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
+import { parseProductScope } from "lib/billing/productScope";
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { constantTimeEqual, generateApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
@@ -18,7 +19,9 @@ const UUID_RE =
 /**
  * Internal endpoint for auto-provisioning a managed API key
  *
- * Called by beacon-gateway when a cloud user chats without a BYOK key.
+ * Called by beacon-gateway when a cloud user chats without a BYOK key, and by
+ * other Omni products (with `appId`) to give an end user managed access that
+ * the gateway meters and charges under that product.
  * Upserts the user, then creates or rotates a managed key.
  */
 const provisionKeyRoute = new Elysia().post(
@@ -41,6 +44,21 @@ const provisionKeyRoute = new Elysia().post(
       set.status = 400;
       return { error: "identityProviderId must be a UUID" };
     }
+
+    // A product provisioning per-end-user access names its Aether app (and
+    // optionally the entity to bill); validate before anything is written
+    const parsedScope = parseProductScope({
+      appId: body.appId,
+      billingEntity: body.billingEntity,
+      identityProviderId: body.identityProviderId,
+    });
+
+    if (!parsedScope.ok) {
+      set.status = 400;
+      return { error: parsedScope.error };
+    }
+
+    const scope = parsedScope.scope;
 
     // Upsert user via identityProviderId (same pattern as auth plugin)
     const insertedUser = {
@@ -78,13 +96,22 @@ const provisionKeyRoute = new Elysia().post(
       return { error: "provisioning failed" };
     }
 
-    // Check api_access entitlement before provisioning.
-    // If Aether returns entitlements but api_access is explicitly revoked
-    // (value === "false"), deny the request. Gracefully allow if Aether
-    // is unreachable or returns null.
-    const entitlements = await billing
-      .getEntitlements("user", user.identityProviderId ?? user.id, "synapse")
-      .catch(() => null);
+    // Check api_access entitlement before provisioning, against the product the
+    // key will bill (or Synapse itself for a direct key). If Aether returns
+    // entitlements but api_access is explicitly revoked (value === "false"),
+    // deny the request. Gracefully allow if Aether is unreachable or returns null.
+    const entitlements = await (scope
+      ? billing.getEntitlements(
+          scope.billingEntity.entityType,
+          scope.billingEntity.entityId,
+          scope.appId,
+        )
+      : billing.getEntitlements(
+          "user",
+          user.identityProviderId ?? user.id,
+          "synapse",
+        )
+    ).catch(() => null);
 
     const apiAccess = entitlements?.entitlements?.find(
       (e) => e.featureKey === "api_access",
@@ -100,9 +127,19 @@ const provisionKeyRoute = new Elysia().post(
     // Generate a fresh API key
     const { raw, hash, hint } = generateApiKey();
 
+    const scopeColumns = scope
+      ? {
+          appId: scope.appId,
+          billingEntityType: scope.billingEntity.entityType,
+          billingEntityId: scope.billingEntity.entityId,
+        }
+      : {};
+
     // Upsert managed key inside a transaction to prevent duplicates
     try {
       await dbPool.transaction(async (tx) => {
+        // One managed key per user per product: a product's key rotates only
+        // that product's key, never the user's direct Synapse key
         const [existingKey] = await tx
           .select({ id: apiKeyTable.id })
           .from(apiKeyTable)
@@ -111,6 +148,9 @@ const provisionKeyRoute = new Elysia().post(
               eq(apiKeyTable.userId, user.id),
               eq(apiKeyTable.mode, "managed"),
               eq(apiKeyTable.name, keyName),
+              scope
+                ? eq(apiKeyTable.appId, scope.appId)
+                : isNull(apiKeyTable.appId),
               isNull(apiKeyTable.revokedAt),
             ),
           )
@@ -118,11 +158,14 @@ const provisionKeyRoute = new Elysia().post(
 
         if (existingKey) {
           // Rotate: update the existing row with new key hash/hint
+          // Rotate: update the existing row with new key hash/hint (and the
+          // entity, which a product may re-point, e.g. user -> organization)
           await tx
             .update(apiKeyTable)
             .set({
               keyHash: hash,
               keyHint: hint,
+              ...scopeColumns,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(apiKeyTable.id, existingKey.id));
@@ -134,6 +177,7 @@ const provisionKeyRoute = new Elysia().post(
             keyHint: hint,
             name: keyName,
             mode: "managed",
+            ...scopeColumns,
           });
         }
       });
@@ -162,6 +206,12 @@ const provisionKeyRoute = new Elysia().post(
       email: t.Optional(t.String()),
       name: t.Optional(t.String()),
       source: t.Optional(t.String()),
+      /** Aether app the key bills (another Omni product); omit for a direct key */
+      appId: t.Optional(t.String()),
+      /** Entity to bill within the product; defaults to the provisioned user */
+      billingEntity: t.Optional(
+        t.Object({ entityType: t.String(), entityId: t.String() }),
+      ),
     }),
   },
 );
