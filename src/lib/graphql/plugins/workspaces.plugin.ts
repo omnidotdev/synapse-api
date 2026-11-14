@@ -4,6 +4,7 @@ import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { checkOrgPermission } from "lib/authz/orgPermission";
 import { isProdEnv } from "lib/config/env.config";
 import { MAX_WORKSPACES } from "lib/config/planLimits.config";
 import { apiKeyTable, workspaceTable } from "lib/db/schema";
@@ -38,44 +39,18 @@ const assertOrgMembership = EXPORTABLE(
 );
 
 /**
- * Assert the observer has a specific permission on an organization via Warden.
- * @param userId - The observer's database user ID
- * @param organizationId - The organization to check against
- * @param action - The required permission (e.g. "member", "admin", "owner")
+ * Assert the observer has a specific permission on an organization via Warden
+ * (checked by identity provider id; fails closed in production)
  */
 const assertOrgPermission = EXPORTABLE(
-  (authz, GraphQLError, isProdEnv) =>
-    async (
-      userId: string,
+  (authz, checkOrgPermission, isProdEnv) =>
+    (
+      observer: { identityProviderId: string },
       organizationId: string,
       action: WardenRelation<"organization">,
-    ) => {
-      if (!authz) {
-        // Fail closed in production: an absent authz client must deny, never
-        // silently allow. In development it no-ops when unconfigured
-        if (isProdEnv) {
-          throw new GraphQLError("Insufficient permissions", {
-            extensions: { code: "FORBIDDEN" },
-          });
-        }
-
-        return;
-      }
-
-      const allowed = await authz.checkPermission(
-        userId,
-        "organization",
-        organizationId,
-        action,
-      );
-
-      if (!allowed) {
-        throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
-          extensions: { code: "FORBIDDEN" },
-        });
-      }
-    },
-  [authz, GraphQLError, isProdEnv],
+    ) =>
+      checkOrgPermission(authz, isProdEnv, observer, organizationId, action),
+  [authz, checkOrgPermission, isProdEnv],
 );
 
 // Fallback limits when Aether is unreachable (catalog SSOT mirror)
@@ -161,11 +136,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               observer.identityProviderId,
               args.organizationId,
             );
-            await assertOrgPermission(
-              observer.id,
-              args.organizationId,
-              "member",
-            );
+            await assertOrgPermission(observer, args.organizationId, "member");
 
             return db
               .select()
@@ -249,7 +220,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               observer.identityProviderId,
               organizationId,
             );
-            await assertOrgPermission(observer.id, organizationId, "admin");
+            await assertOrgPermission(observer, organizationId, "admin");
 
             // Fetch entitlements before the transaction (external call)
             const entitlements = await billing
@@ -412,7 +383,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               existing.organizationId,
             );
             await assertOrgPermission(
-              observer.id,
+              observer,
               existing.organizationId,
               "admin",
             );
@@ -523,7 +494,7 @@ const workspacesPlugin = makeExtendSchemaPlugin({
               existing.organizationId,
             );
             await assertOrgPermission(
-              observer.id,
+              observer,
               existing.organizationId,
               "admin",
             );

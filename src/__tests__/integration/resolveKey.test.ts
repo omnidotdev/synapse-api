@@ -785,3 +785,156 @@ describe("POST /internal/resolve-key (product-scoped keys)", () => {
 		getEntitlementsSpy.mockRestore();
 	});
 });
+
+describe("POST /internal/resolve-key (workspace-billed direct keys)", () => {
+	/** Seed a direct key owned by a fresh user in a workspace */
+	const seedWorkspaceKey = async (organizationId: string) => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+			organizationId,
+		});
+
+		return { user, apiKey, raw };
+	};
+
+	/** Seed `count` direct usage events for a key */
+	const seedEvents = async (userId: string, apiKeyId: string, count: number) => {
+		await ctx.db.insert(usageEventTable).values(
+			Array.from({ length: count }, () => ({
+				userId,
+				apiKeyId,
+				provider: "anthropic",
+				model: "claude-3-5-sonnet",
+				inputTokens: 10,
+				outputTokens: 10,
+				costCents: 1,
+				mode: "byok",
+			})),
+		);
+	};
+
+	test("bills the workspace that owns the key, not the key's creator", async () => {
+		const organizationId = crypto.randomUUID();
+		const { raw } = await seedWorkspaceKey(organizationId);
+
+		const getEntitlementsSpy = spyOn(billing, "getEntitlements");
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		// The gateway bills its own app, as the workspace's organization entity
+		expect(body.appId).toBeNull();
+		expect(body.billingEntity).toEqual({
+			entityType: "organization",
+			entityId: organizationId,
+		});
+		expect(getEntitlementsSpy).toHaveBeenCalledWith(
+			"organization",
+			organizationId,
+			"synapse",
+		);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("a paid workspace resolves its tier without touching the creator's plan", async () => {
+		const organizationId = crypto.randomUUID();
+		const { user, raw } = await seedWorkspaceKey(organizationId);
+
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [{ featureKey: "tier", value: "pro" }],
+		} as unknown as EntitlementsResponse);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		const body = await res.json();
+		expect(body.plan).toBe("pro");
+		expect(body.rateLimits).toEqual(PLAN_RATE_LIMITS.pro);
+
+		// user.plan is the legacy per-user tier; a workspace tier never lands there
+		const [stored] = await ctx.db
+			.select({ plan: userTable.plan })
+			.from(userTable)
+			.where(eq(userTable.id, user.id));
+		expect(stored?.plan).toBe(user.plan);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("the monthly quota is shared across every key in the workspace", async () => {
+		const organizationId = crypto.randomUUID();
+		const first = await seedWorkspaceKey(organizationId);
+		const second = await seedWorkspaceKey(organizationId);
+
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "max_requests_per_month", value: 3 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		// Each key alone is under the cap; together the workspace is over it
+		await seedEvents(first.user.id, first.apiKey.id, 2);
+		await seedEvents(second.user.id, second.apiKey.id, 2);
+
+		const res = await resolveKey(first.raw, GATEWAY_SECRET);
+		expect(res.status).toBe(429);
+
+		const body = await res.json();
+		expect(body.error).toBe("monthly_request_limit_exceeded");
+		expect(body.current).toBe(4);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("another workspace's usage never counts against this one", async () => {
+		const { raw } = await seedWorkspaceKey(crypto.randomUUID());
+		const other = await seedWorkspaceKey(crypto.randomUUID());
+
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "max_requests_per_month", value: 3 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		await seedEvents(other.user.id, other.apiKey.id, 5);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(200);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("a key cannot belong to a workspace and a product at once", async () => {
+		const user = await userFactory.create(ctx.db);
+
+		await expect(
+			apiKeyFactory.create(ctx.db, {
+				userId: user.id,
+				mode: "managed",
+				organizationId: crypto.randomUUID(),
+				appId: "facet",
+				billingEntityType: "user",
+				billingEntityId: crypto.randomUUID(),
+			}),
+		).rejects.toThrow();
+	});
+});

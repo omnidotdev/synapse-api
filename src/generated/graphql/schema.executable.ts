@@ -2,9 +2,12 @@
 /* eslint-disable graphile-export/export-instances, graphile-export/export-methods, graphile-export/export-plans, graphile-export/exhaustive-deps */
 import { PgCondition, PgExecutor, TYPES, assertPgClassSingleStep, listOfCodec, makeRegistry, recordCodec, sqlValueWithCodec } from "@dataplan/pg";
 import { isWithinLimit } from "@omnidotdev/providers/billing";
-import { and, desc, eq, gte, isNull, lte, ne, sql as sql2 } from "drizzle-orm";
-import { ConnectionStep, __ValueStep, access, connection, constant, context, get as get2, inhibitOnNull, inspect, lambda, list, makeDecodeNodeId, makeGrafastSchema, markSyncAndSafe, object, rootValue } from "grafast";
+import { and, desc, eq, gte, isNull, lte, sql as sql2 } from "drizzle-orm";
+import { ConnectionStep, __ValueStep, access, connection, constant, context, get as get2, inhibitOnNull, inspect, lambda, list, makeDecodeNodeId, makeGrafastSchema, markSyncAndSafe, object } from "grafast";
 import { GraphQLError, Kind } from "graphql";
+import { checkOrgPermission } from "lib/authz/orgPermission";
+import { SpendingLimitRejectedError, spendingLimits } from "lib/billing/spendingLimit";
+import { countWorkspaceKeys, resolveKeyOrganization } from "lib/billing/workspaceBilling";
 import { encrypt, generateApiKey } from "lib/crypto";
 import { apiKeyProviderTable, apiKeyTable, providerKeyTable, usageEventTable, userPreferenceTable, workspaceTable } from "lib/db/schema";
 import { publish } from "lib/events/publisher";
@@ -22,6 +25,7 @@ const rawNodeIdCodec = {
     return typeof value === "string" ? value : null;
   })
 };
+const EMPTY_OBJECT = Object.freeze({});
 const makeTableNodeIdHandler = ({
   typeName,
   nodeIdCodec,
@@ -109,7 +113,7 @@ const spec_apiKeyProvider = {
     }
   },
   extensions: {
-    oid: "79594",
+    oid: "16410",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -202,7 +206,7 @@ const spec_workspace = {
     }
   },
   extensions: {
-    oid: "79671",
+    oid: "16464",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -287,7 +291,7 @@ const spec_userPreference = {
     }
   },
   extensions: {
-    oid: "79654",
+    oid: "16451",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -391,7 +395,7 @@ const spec_providerKey = {
     }
   },
   extensions: {
-    oid: "79602",
+    oid: "16416",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -495,7 +499,7 @@ const spec_user = {
     }
   },
   extensions: {
-    oid: "79638",
+    oid: "16438",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -506,6 +510,154 @@ const spec_user = {
   executor: executor
 };
 const userCodec = recordCodec(spec_user);
+const usageEventIdentifier = sql.identifier("public", "usage_event");
+const spec_usageEvent = {
+  name: "usageEvent",
+  identifier: usageEventIdentifier,
+  attributes: {
+    __proto__: null,
+    id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    user_id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    workspace_id: {
+      codec: TYPES.uuid,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    api_key_id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    provider: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    model: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    input_tokens: {
+      codec: TYPES.int,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    output_tokens: {
+      codec: TYPES.int,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    cost_cents: {
+      codec: TYPES.int,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    mode: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    created_at: {
+      codec: TYPES.timestamptz,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    dedupe_key: {
+      codec: TYPES.text,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    }
+  },
+  extensions: {
+    oid: "16426",
+    isTableLike: true,
+    pg: {
+      serviceName: "main",
+      schemaName: "public",
+      name: "usage_event"
+    }
+  },
+  executor: executor
+};
+const usageEventCodec = recordCodec(spec_usageEvent);
 const apiKeyIdentifier = sql.identifier("public", "api_key");
 const spec_apiKey = {
   name: "apiKey",
@@ -638,10 +790,49 @@ const spec_apiKey = {
         canUpdate: true,
         isIndexed: false
       }
+    },
+    app_id: {
+      codec: TYPES.text,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    billing_entity_type: {
+      codec: TYPES.text,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    billing_entity_id: {
+      codec: TYPES.text,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    organization_id: {
+      codec: TYPES.uuid,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
     }
   },
   extensions: {
-    oid: "79575",
+    oid: "16397",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -652,145 +843,6 @@ const spec_apiKey = {
   executor: executor
 };
 const apiKeyCodec = recordCodec(spec_apiKey);
-const usageEventIdentifier = sql.identifier("public", "usage_event");
-const spec_usageEvent = {
-  name: "usageEvent",
-  identifier: usageEventIdentifier,
-  attributes: {
-    __proto__: null,
-    id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    user_id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    workspace_id: {
-      codec: TYPES.uuid,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    api_key_id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    provider: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    model: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    input_tokens: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    output_tokens: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    cost_cents: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    mode: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    created_at: {
-      codec: TYPES.timestamptz,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    }
-  },
-  extensions: {
-    oid: "79617",
-    isTableLike: true,
-    pg: {
-      serviceName: "main",
-      schemaName: "public",
-      name: "usage_event"
-    }
-  },
-  executor: executor
-};
-const usageEventCodec = recordCodec(spec_usageEvent);
 const api_key_providerUniques = [{
   attributes: ["api_key_id", "provider_key_id"],
   isPrimary: true
@@ -891,6 +943,29 @@ const user_resourceOptionsConfig = {
   },
   uniques: userUniques
 };
+const usage_eventUniques = [{
+  attributes: ["id"],
+  isPrimary: true
+}];
+const usage_event_resourceOptionsConfig = {
+  executor: executor,
+  name: "usage_event",
+  identifier: "main.public.usage_event",
+  from: usageEventIdentifier,
+  codec: usageEventCodec,
+  extensions: {
+    pg: {
+      serviceName: "main",
+      schemaName: "public",
+      name: "usage_event"
+    },
+    canSelect: true,
+    canInsert: true,
+    canUpdate: true,
+    canDelete: true
+  },
+  uniques: usage_eventUniques
+};
 const api_keyUniques = [{
   attributes: ["id"],
   isPrimary: true
@@ -916,29 +991,6 @@ const api_key_resourceOptionsConfig = {
   },
   uniques: api_keyUniques
 };
-const usage_eventUniques = [{
-  attributes: ["id"],
-  isPrimary: true
-}];
-const usage_event_resourceOptionsConfig = {
-  executor: executor,
-  name: "usage_event",
-  identifier: "main.public.usage_event",
-  from: usageEventIdentifier,
-  codec: usageEventCodec,
-  extensions: {
-    pg: {
-      serviceName: "main",
-      schemaName: "public",
-      name: "usage_event"
-    },
-    canSelect: true,
-    canInsert: true,
-    canUpdate: true,
-    canDelete: true
-  },
-  uniques: usage_eventUniques
-};
 const registryConfig = {
   pgExecutors: {
     __proto__: null,
@@ -955,9 +1007,9 @@ const registryConfig = {
     bool: TYPES.boolean,
     providerKey: providerKeyCodec,
     user: userCodec,
-    apiKey: apiKeyCodec,
     usageEvent: usageEventCodec,
-    int4: TYPES.int
+    int4: TYPES.int,
+    apiKey: apiKeyCodec
   },
   pgResources: {
     __proto__: null,
@@ -984,8 +1036,8 @@ const registryConfig = {
     user_preference: user_preference_resourceOptionsConfig,
     provider_key: provider_key_resourceOptionsConfig,
     user: user_resourceOptionsConfig,
-    api_key: api_key_resourceOptionsConfig,
-    usage_event: usage_event_resourceOptionsConfig
+    usage_event: usage_event_resourceOptionsConfig,
+    api_key: api_key_resourceOptionsConfig
   },
   pgRelations: {
     __proto__: null,
@@ -1149,14 +1201,6 @@ const nodeIdHandler_User = makeTableNodeIdHandler({
   resource: spec_resource_userPgResource,
   pk: userUniques[0].attributes
 });
-const spec_resource_api_keyPgResource = registry.pgResources["api_key"];
-const nodeIdHandler_ApiKey = makeTableNodeIdHandler({
-  typeName: "ApiKey",
-  identifier: "ApiKey",
-  nodeIdCodec: base64JSONNodeIdCodec,
-  resource: spec_resource_api_keyPgResource,
-  pk: api_keyUniques[0].attributes
-});
 const spec_resource_usage_eventPgResource = registry.pgResources["usage_event"];
 const nodeIdHandler_UsageEvent = makeTableNodeIdHandler({
   typeName: "UsageEvent",
@@ -1164,6 +1208,14 @@ const nodeIdHandler_UsageEvent = makeTableNodeIdHandler({
   nodeIdCodec: base64JSONNodeIdCodec,
   resource: spec_resource_usage_eventPgResource,
   pk: usage_eventUniques[0].attributes
+});
+const spec_resource_api_keyPgResource = registry.pgResources["api_key"];
+const nodeIdHandler_ApiKey = makeTableNodeIdHandler({
+  typeName: "ApiKey",
+  identifier: "ApiKey",
+  nodeIdCodec: base64JSONNodeIdCodec,
+  resource: spec_resource_api_keyPgResource,
+  pk: api_keyUniques[0].attributes
 });
 const nodeIdHandlerByTypeName = {
   __proto__: null,
@@ -1180,7 +1232,7 @@ const nodeIdHandlerByTypeName = {
       return "irrelevant";
     },
     get() {
-      return rootValue();
+      return constant(EMPTY_OBJECT);
     },
     plan() {
       return constant`query`;
@@ -1191,8 +1243,8 @@ const nodeIdHandlerByTypeName = {
   UserPreference: nodeIdHandler_UserPreference,
   ProviderKey: nodeIdHandler_ProviderKey,
   User: nodeIdHandler_User,
-  ApiKey: nodeIdHandler_ApiKey,
-  UsageEvent: nodeIdHandler_UsageEvent
+  UsageEvent: nodeIdHandler_UsageEvent,
+  ApiKey: nodeIdHandler_ApiKey
 };
 const decodeNodeId = makeDecodeNodeId(Object.values(nodeIdHandlerByTypeName));
 function findTypeNameMatch(specifier) {
@@ -1248,6 +1300,9 @@ const ApiKey_keyHintPlan = $record => {
 };
 const ApiKey_updatedAtPlan = $record => {
   return $record.get("updated_at");
+};
+const ApiKey_organizationIdPlan = $record => {
+  return $record.get("organization_id");
 };
 const ApiKey_userPlan = $record => spec_resource_userPgResource.get({
   id: $record.get("user_id")
@@ -1313,6 +1368,7 @@ function applyAttributeCondition(attributeName, attributeCodec, $condition, val)
 }
 const ApiKeyCondition_rowIdApply = ($condition, val) => applyAttributeCondition("id", TYPES.uuid, $condition, val);
 const ApiKeyCondition_userIdApply = ($condition, val) => applyAttributeCondition("user_id", TYPES.uuid, $condition, val);
+const ApiKeyCondition_organizationIdApply = ($condition, val) => applyAttributeCondition("organization_id", TYPES.uuid, $condition, val);
 const pgConnectionFilterApplyAttribute = (fieldName, attributeName, attribute, queryBuilder, value) => {
   if (value === void 0) return;
   if (!false && isEmpty(value)) throw Object.assign(Error("Empty objects are forbidden in filter argument input."), {});
@@ -1602,16 +1658,35 @@ const ApiKeyOrderBy_USER_ID_DESCApply = queryBuilder => {
     direction: "DESC"
   });
 };
+const ApiKeyOrderBy_ORGANIZATION_ID_ASCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "organization_id",
+    direction: "ASC"
+  });
+};
+const ApiKeyOrderBy_ORGANIZATION_ID_DESCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "organization_id",
+    direction: "DESC"
+  });
+};
 const ApiKeyProviderCondition_apiKeyIdApply = ($condition, val) => applyAttributeCondition("api_key_id", TYPES.uuid, $condition, val);
-const assertOrgPermission = async (userId, organizationId, action) => {
-  if (!null) return;
-  if (!(await null.checkPermission(userId, "organization", organizationId, action))) throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
+const assertOrgPermission = (observer, organizationId, action) => checkOrgPermission(null, false, observer, organizationId, action);
+const extractAccessToken = request => request.headers.get("authorization")?.split("Bearer ")[1];
+const toClientError = err => {
+  if (err instanceof SpendingLimitRejectedError) return new GraphQLError(err.message, {
     extensions: {
-      code: "FORBIDDEN"
+      code: "BAD_USER_INPUT"
+    }
+  });
+  console.error(`[spending-limit] ${err instanceof Error ? err.message : "unknown error"}`);
+  return new GraphQLError("Spending limits are unavailable right now. Try again shortly", {
+    extensions: {
+      code: "SERVICE_UNAVAILABLE"
     }
   });
 };
-const extractAccessToken = request => request.headers.get("authorization")?.split("Bearer ")[1];
+const EMPTY_OBJECT2 = Object.freeze({});
 const specForHandlerCache = new Map();
 function specForHandler(handler) {
   const existing = specForHandlerCache.get(handler);
@@ -1647,13 +1722,13 @@ const nodeFetcher_User = $nodeId => {
   const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_User));
   return nodeIdHandler_User.get(nodeIdHandler_User.getSpec($decoded));
 };
-const nodeFetcher_ApiKey = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_ApiKey));
-  return nodeIdHandler_ApiKey.get(nodeIdHandler_ApiKey.getSpec($decoded));
-};
 const nodeFetcher_UsageEvent = $nodeId => {
   const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_UsageEvent));
   return nodeIdHandler_UsageEvent.get(nodeIdHandler_UsageEvent.getSpec($decoded));
+};
+const nodeFetcher_ApiKey = $nodeId => {
+  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_ApiKey));
+  return nodeIdHandler_ApiKey.get(nodeIdHandler_ApiKey.getSpec($decoded));
 };
 const DEFAULT_RETENTION_DAYS = {
   free: 7,
@@ -1669,7 +1744,7 @@ const resolveRetentionDays = (entitlements, tier) => {
   return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
 };
 const assertOrgMembership = async (observerIdpId, organizationId) => {
-  if (!(await validateOrgMembership(observerIdpId, organizationId))) throw new GraphQLError("Not a member of this organization", {
+  if (!(await validateOrgMembership(observerIdpId, organizationId))) throw new GraphQLError("Not a member of this workspace", {
     extensions: {
       code: "FORBIDDEN"
     }
@@ -1751,6 +1826,10 @@ type ApiKey implements Node {
   revokedAt: Datetime
   createdAt: Datetime
   updatedAt: Datetime
+  appId: String
+  billingEntityType: String
+  billingEntityId: String
+  organizationId: UUID
 
   """Reads a single \`User\` that is related to this \`ApiKey\`."""
   user: User
@@ -2000,6 +2079,9 @@ input ApiKeyCondition {
 
   """Checks for equality with the object’s \`keyHash\` field."""
   keyHash: String
+
+  """Checks for equality with the object’s \`organizationId\` field."""
+  organizationId: UUID
 }
 
 """
@@ -2014,6 +2096,9 @@ input ApiKeyFilter {
 
   """Filter by the object’s \`keyHash\` field."""
   keyHash: StringFilter
+
+  """Filter by the object’s \`organizationId\` field."""
+  organizationId: UUIDFilter
 
   """Filter by the object’s \`apiKeyProviders\` relation."""
   apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
@@ -2432,6 +2517,9 @@ input UsageEventFilter {
   """Filter by the object’s \`createdAt\` field."""
   createdAt: DatetimeFilter
 
+  """Filter by the object’s \`dedupeKey\` field."""
+  dedupeKey: StringFilter
+
   """Filter by the object’s \`apiKey\` relation."""
   apiKey: ApiKeyFilter
 
@@ -2544,6 +2632,8 @@ enum ApiKeyOrderBy {
   USER_ID_DESC
   KEY_HASH_ASC
   KEY_HASH_DESC
+  ORGANIZATION_ID_ASC
+  ORGANIZATION_ID_DESC
 }
 
 """A connection to a list of \`ProviderKey\` values."""
@@ -2734,6 +2824,7 @@ type UsageEvent implements Node {
   costCents: Int!
   mode: String!
   createdAt: Datetime
+  dedupeKey: String
 
   """Reads a single \`ApiKey\` that is related to this \`UsageEvent\`."""
   apiKey: ApiKey
@@ -2767,6 +2858,9 @@ input UsageEventCondition {
 
   """Checks for equality with the object’s \`createdAt\` field."""
   createdAt: Datetime
+
+  """Checks for equality with the object’s \`dedupeKey\` field."""
+  dedupeKey: String
 }
 
 """Methods to use when ordering \`UsageEvent\`."""
@@ -2782,6 +2876,8 @@ enum UsageEventOrderBy {
   API_KEY_ID_DESC
   CREATED_AT_ASC
   CREATED_AT_DESC
+  DEDUPE_KEY_ASC
+  DEDUPE_KEY_DESC
 }
 
 type UserPreference implements Node {
@@ -2994,20 +3090,32 @@ type Observer {
   email: String!
 
   """
-  List active API keys for the current user, optionally filtered by workspace.
+  List active API keys. With \`organizationId\`, every key that belongs to
+  that workspace (members only); otherwise the current user's own keys,
+  optionally filtered by Synapse workspace resource.
   """
-  apiKeys(workspaceId: UUID): [ApiKeyInfo!]!
+  apiKeys(organizationId: UUID, workspaceId: UUID): [ApiKeyInfo!]!
 
   """Fetch current user's preferences."""
   preferences: UserPreferences
 
   """List provider keys for the current user."""
   providerKeys: [ProviderKeyInfo!]!
+
+  """A workspace's Synapse spending limit (workspace members only)."""
+  spendingLimit(organizationId: UUID!): SpendingLimit
 }
 
 input GenerateApiKeyInput {
   name: String!
   mode: String!
+
+  """
+  Workspace (organization) the key belongs to and bills. Required unless
+  \`workspaceId\` names a Synapse workspace resource, whose organization
+  the key then inherits
+  """
+  organizationId: UUID
   workspaceId: UUID
 }
 
@@ -3060,6 +3168,19 @@ type ProviderKeyInfo {
   createdAt: Datetime
   updatedAt: Datetime
   modelPreference: String
+}
+
+type SpendingLimit {
+  organizationId: UUID!
+
+  """Hard monthly cap on request overage, in cents (null when unset)"""
+  hardLimitCents: Int
+
+  """Overage owed this period, in cents, as last settled"""
+  currentSpendCents: Int!
+
+  """Whether requests past the included allowance are paused at the limit"""
+  suspended: Boolean!
 }
 
 type ModelBreakdown {
@@ -3122,14 +3243,14 @@ type Query implements Node {
   """Get a single \`User\`."""
   userByIdentityProviderId(identityProviderId: UUID!): User
 
+  """Get a single \`UsageEvent\`."""
+  usageEvent(rowId: UUID!): UsageEvent
+
   """Get a single \`ApiKey\`."""
   apiKey(rowId: UUID!): ApiKey
 
   """Get a single \`ApiKey\`."""
   apiKeyByKeyHash(keyHash: String!): ApiKey
-
-  """Get a single \`UsageEvent\`."""
-  usageEvent(rowId: UUID!): UsageEvent
 
   """Reads a single \`ApiKeyProvider\` using its globally unique \`ID\`."""
   apiKeyProviderById(
@@ -3167,12 +3288,6 @@ type Query implements Node {
     id: ID!
   ): User
 
-  """Reads a single \`ApiKey\` using its globally unique \`ID\`."""
-  apiKeyById(
-    """The globally unique \`ID\` to be used in selecting a single \`ApiKey\`."""
-    id: ID!
-  ): ApiKey
-
   """Reads a single \`UsageEvent\` using its globally unique \`ID\`."""
   usageEventById(
     """
@@ -3180,6 +3295,12 @@ type Query implements Node {
     """
     id: ID!
   ): UsageEvent
+
+  """Reads a single \`ApiKey\` using its globally unique \`ID\`."""
+  apiKeyById(
+    """The globally unique \`ID\` to be used in selecting a single \`ApiKey\`."""
+    id: ID!
+  ): ApiKey
 
   """Reads and enables pagination through a set of \`ApiKeyProvider\`."""
   apiKeyProviders(
@@ -3351,40 +3472,6 @@ type Query implements Node {
     orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
   ): UserConnection
 
-  """Reads and enables pagination through a set of \`ApiKey\`."""
-  apiKeys(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ApiKeyCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ApiKeyFilter
-
-    """The method to use when ordering \`ApiKey\`."""
-    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ApiKeyConnection
-
   """Reads and enables pagination through a set of \`UsageEvent\`."""
   usageEvents(
     """Only read the first \`n\` values of the set."""
@@ -3418,6 +3505,40 @@ type Query implements Node {
     """The method to use when ordering \`UsageEvent\`."""
     orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
   ): UsageEventConnection
+
+  """Reads and enables pagination through a set of \`ApiKey\`."""
+  apiKeys(
+    """Only read the first \`n\` values of the set."""
+    first: Int
+
+    """Only read the last \`n\` values of the set."""
+    last: Int
+
+    """
+    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
+    based pagination. May not be used with \`last\`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyFilter
+
+    """The method to use when ordering \`ApiKey\`."""
+    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyConnection
 
   """The currently authenticated user. Returns null if not authenticated."""
   observer: Observer
@@ -3471,6 +3592,12 @@ type Mutation {
 
   """Delete a provider key. Verifies ownership before deletion."""
   removeProviderKey(id: UUID!): Boolean
+
+  """
+  Set a workspace's hard spending limit in cents (workspace admins only).
+  Raising it above the overage already owed resumes paused requests.
+  """
+  setSpendingLimit(organizationId: UUID!, hardLimitCents: Int!): SpendingLimit!
 
   """Create a new workspace within an organization"""
   addWorkspace(
@@ -3612,7 +3739,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, args.organizationId);
-          await assertOrgPermission(observer.id, args.organizationId, "member");
+          await assertOrgPermission(observer, args.organizationId, "member");
           return db.select().from(workspaceTable).where(eq(workspaceTable.organizationId, args.organizationId));
         },
         subscribe: undefined
@@ -3644,7 +3771,7 @@ export const objects = {
         }
       },
       query() {
-        return rootValue();
+        return constant(EMPTY_OBJECT2);
       },
       usageBreakdown: {
         async resolve(_source, args, ctx) {
@@ -3885,7 +4012,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, organizationId);
-          await assertOrgPermission(observer.id, organizationId, "admin");
+          await assertOrgPermission(observer, organizationId, "admin");
           const entitlements = await billing.getEntitlements("organization", organizationId, "synapse").catch(() => null),
             workspace = await db.transaction(async tx => {
               const existingWorkspaces = await tx.select({
@@ -3966,33 +4093,22 @@ export const objects = {
               code: "BAD_USER_INPUT"
             }
           });
-          if (workspaceId) {
-            const [workspace] = await db.select({
-              organizationId: workspaceTable.organizationId
-            }).from(workspaceTable).where(eq(workspaceTable.id, workspaceId));
-            if (!workspace) throw new GraphQLError("Workspace not found", {
-              extensions: {
-                code: "NOT_FOUND"
-              }
-            });
-            await assertOrgPermission(observer.id, workspace.organizationId, "admin");
-          }
           if (mode !== "byok") throw new GraphQLError('Invalid key mode. Only "byok" is allowed', {
             extensions: {
               code: "BAD_USER_INPUT"
             }
           });
-          const entitlements = await billing.getEntitlements("user", observer.identityProviderId ?? observer.id, "synapse").catch(() => null),
+          const organizationId = await resolveKeyOrganization(db, args.input);
+          await assertOrgPermission(observer, organizationId, "admin");
+          const entitlements = await billing.getEntitlements("organization", organizationId, "synapse").catch(() => null),
             {
               raw,
               hash,
               hint
             } = generateApiKey(),
             apiKey = await db.transaction(async tx => {
-              const activeKeys = await tx.select({
-                id: apiKeyTable.id
-              }).from(apiKeyTable).where(and(eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt), ne(apiKeyTable.mode, "managed")));
-              if (!isWithinLimit(entitlements, "max_api_keys", activeKeys.length, DEFAULT_LIMITS)) throw new GraphQLError("API key limit reached. Upgrade your plan for more keys", {
+              const activeKeys = await countWorkspaceKeys(tx, organizationId);
+              if (!isWithinLimit(entitlements, "max_api_keys", activeKeys, DEFAULT_LIMITS)) throw new GraphQLError("API key limit reached. Upgrade your plan for more keys", {
                 extensions: {
                   code: "QUOTA_EXCEEDED"
                 }
@@ -4001,6 +4117,7 @@ export const objects = {
                 userId: observer.id,
                 name,
                 mode,
+                organizationId,
                 workspaceId: workspaceId ?? null,
                 keyHash: hash,
                 keyHint: hint
@@ -4010,12 +4127,13 @@ export const objects = {
           publish({
             type: "synapse.api_key.created",
             source: "omni.synapse",
-            organizationId: observer.id,
+            organizationId,
             subject: observer.id,
             data: {
               apiKeyId: apiKey.id,
               name,
               mode,
+              organizationId,
               workspaceId: workspaceId ?? null
             }
           });
@@ -4030,6 +4148,7 @@ export const objects = {
             details: {
               name,
               mode,
+              organizationId,
               workspaceId: workspaceId ?? null
             }
           });
@@ -4065,7 +4184,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, apiKey.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
+            if (workspace) await assertOrgPermission(observer, workspace.organizationId, "admin");
           }
           const [providerKey] = await db.select({
             id: providerKeyTable.id
@@ -4125,7 +4244,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, existing.organizationId);
-          await assertOrgPermission(observer.id, existing.organizationId, "admin");
+          await assertOrgPermission(observer, existing.organizationId, "admin");
           const set = {
             updatedAt: new Date().toISOString()
           };
@@ -4136,7 +4255,7 @@ export const objects = {
           try {
             [workspace] = await db.update(workspaceTable).set(set).where(eq(workspaceTable.id, args.id)).returning();
           } catch (err) {
-            if (err instanceof Error && err.message.includes("unique") && args.input.slug) throw new GraphQLError(`Slug "${args.input.slug}" is already taken in this organization`, {
+            if (err instanceof Error && err.message.includes("unique") && args.input.slug) throw new GraphQLError(`Slug "${args.input.slug}" is already taken in this workspace`, {
               extensions: {
                 code: "CONFLICT"
               }
@@ -4259,7 +4378,7 @@ export const objects = {
             }
           });
           await assertOrgMembership(observer.identityProviderId, existing.organizationId);
-          await assertOrgPermission(observer.id, existing.organizationId, "admin");
+          await assertOrgPermission(observer, existing.organizationId, "admin");
           await db.update(apiKeyTable).set({
             revokedAt: new Date().toISOString()
           }).where(and(eq(apiKeyTable.workspaceId, args.id), isNull(apiKeyTable.revokedAt)));
@@ -4309,28 +4428,32 @@ export const objects = {
             }
           });
           const [existing] = await db.select({
-            workspaceId: apiKeyTable.workspaceId
-          }).from(apiKeyTable).where(and(eq(apiKeyTable.id, args.id), eq(apiKeyTable.userId, observer.id)));
-          if (!existing) throw new GraphQLError("API key not found", {
+              userId: apiKeyTable.userId,
+              organizationId: apiKeyTable.organizationId,
+              workspaceId: apiKeyTable.workspaceId
+            }).from(apiKeyTable).where(eq(apiKeyTable.id, args.id)),
+            isOwner = existing?.userId === observer.id;
+          if (!existing || !isOwner && !existing.organizationId) throw new GraphQLError("API key not found", {
             extensions: {
               code: "NOT_FOUND"
             }
           });
+          if (!isOwner && existing.organizationId) await assertOrgPermission(observer, existing.organizationId, "admin");
           if (existing.workspaceId) {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, existing.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
+            if (workspace) await assertOrgPermission(observer, workspace.organizationId, "admin");
           }
           const [updated] = await db.update(apiKeyTable).set({
             revokedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          }).where(and(eq(apiKeyTable.id, args.id), eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt))).returning();
+          }).where(and(eq(apiKeyTable.id, args.id), isNull(apiKeyTable.revokedAt))).returning();
           if (updated) {
             publish({
               type: "synapse.api_key.revoked",
               source: "omni.synapse",
-              organizationId: observer.id,
+              organizationId: existing.organizationId ?? observer.id,
               subject: observer.id,
               data: {
                 apiKeyId: args.id
@@ -4477,6 +4600,25 @@ export const objects = {
         },
         subscribe: undefined
       },
+      setSpendingLimit: {
+        async resolve(_source, args, ctx) {
+          const {
+            observer
+          } = ctx;
+          if (!observer) throw new GraphQLError("Authentication required", {
+            extensions: {
+              code: "UNAUTHENTICATED"
+            }
+          });
+          await checkOrgPermission(null, false, observer, args.organizationId, "admin");
+          try {
+            return await spendingLimits.setHardLimit(args.organizationId, args.hardLimitCents);
+          } catch (err) {
+            throw toClientError(err);
+          }
+        },
+        subscribe: undefined
+      },
       unlinkProviderKey: {
         async resolve(_source, args, ctx) {
           const {
@@ -4501,7 +4643,7 @@ export const objects = {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, apiKey.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "admin");
+            if (workspace) await assertOrgPermission(observer, workspace.organizationId, "admin");
           }
           const [deleted] = await db.delete(apiKeyProviderTable).where(and(eq(apiKeyProviderTable.apiKeyId, args.apiKeyId), eq(apiKeyProviderTable.providerKeyId, args.providerKeyId))).returning();
           return !!deleted;
@@ -4604,6 +4746,15 @@ export const objects = {
           orderBy: applyOrderByArgToConnection
         }
       },
+      appId($record) {
+        return $record.get("app_id");
+      },
+      billingEntityId($record) {
+        return $record.get("billing_entity_id");
+      },
+      billingEntityType($record) {
+        return $record.get("billing_entity_type");
+      },
       createdAt: ApiKeyProvider_createdAtPlan,
       expiresAt($record) {
         return $record.get("expires_at");
@@ -4619,6 +4770,7 @@ export const objects = {
       lastUsedAt($record) {
         return $record.get("last_used_at");
       },
+      organizationId: ApiKey_organizationIdPlan,
       revokedAt($record) {
         return $record.get("revoked_at");
       },
@@ -4713,11 +4865,15 @@ export const objects = {
           const {
             db
           } = ctx;
+          if (args.organizationId) {
+            await assertOrgPermission(observer, args.organizationId, "member");
+            return db.select().from(apiKeyTable).where(and(eq(apiKeyTable.organizationId, args.organizationId), isNull(apiKeyTable.revokedAt))).orderBy(desc(apiKeyTable.createdAt));
+          }
           if (args.workspaceId) {
             const [workspace] = await db.select({
               organizationId: workspaceTable.organizationId
             }).from(workspaceTable).where(eq(workspaceTable.id, args.workspaceId));
-            if (workspace) await assertOrgPermission(observer.id, workspace.organizationId, "member");
+            if (workspace) await assertOrgPermission(observer, workspace.organizationId, "member");
           }
           const conditions = [eq(apiKeyTable.userId, observer.id), isNull(apiKeyTable.revokedAt)];
           if (args.workspaceId) conditions.push(eq(apiKeyTable.workspaceId, args.workspaceId));
@@ -4762,6 +4918,17 @@ export const objects = {
             ...row,
             encryptedKey: ""
           }));
+        },
+        subscribe: undefined
+      },
+      spendingLimit: {
+        async resolve(observer, args) {
+          await checkOrgPermission(null, false, observer, args.organizationId, "member");
+          try {
+            return await spendingLimits.getSpendingLimit(args.organizationId);
+          } catch (err) {
+            throw toClientError(err);
+          }
         },
         subscribe: undefined
       }
@@ -4826,6 +4993,9 @@ export const objects = {
         return $record.get("cost_cents");
       },
       createdAt: ApiKeyProvider_createdAtPlan,
+      dedupeKey($record) {
+        return $record.get("dedupe_key");
+      },
       id($parent) {
         const specifier = nodeIdHandler_UsageEvent.plan($parent);
         return lambda(specifier, nodeIdCodecs[nodeIdHandler_UsageEvent.codec.name].encode);
@@ -4982,9 +5152,7 @@ export const objects = {
         const specifier = nodeIdHandler_Workspace.plan($parent);
         return lambda(specifier, nodeIdCodecs[nodeIdHandler_Workspace.codec.name].encode);
       },
-      organizationId($record) {
-        return $record.get("organization_id");
-      },
+      organizationId: ApiKey_organizationIdPlan,
       rowId: ApiKey_rowIdPlan,
       updatedAt: ApiKey_updatedAtPlan
     },
@@ -5021,6 +5189,7 @@ export const inputObjects = {
       keyHash($condition, val) {
         return applyAttributeCondition("key_hash", TYPES.text, $condition, val);
       },
+      organizationId: ApiKeyCondition_organizationIdApply,
       rowId: ApiKeyCondition_rowIdApply,
       userId: ApiKeyCondition_userIdApply
     }
@@ -5057,6 +5226,9 @@ export const inputObjects = {
       },
       not: ApiKeyFilter_notApply,
       or: ApiKeyFilter_orApply,
+      organizationId(queryBuilder, value) {
+        return pgConnectionFilterApplyAttribute("organizationId", "organization_id", spec_apiKey.attributes.organization_id, queryBuilder, value);
+      },
       rowId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("rowId", "id", spec_apiKey.attributes.id, queryBuilder, value);
       },
@@ -5306,6 +5478,9 @@ export const inputObjects = {
       createdAt($condition, val) {
         return applyAttributeCondition("created_at", TYPES.timestamptz, $condition, val);
       },
+      dedupeKey($condition, val) {
+        return applyAttributeCondition("dedupe_key", TYPES.text, $condition, val);
+      },
       rowId: ApiKeyCondition_rowIdApply,
       userId: ApiKeyCondition_userIdApply
     }
@@ -5321,6 +5496,9 @@ export const inputObjects = {
       },
       createdAt(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("createdAt", "created_at", spec_usageEvent.attributes.created_at, queryBuilder, value);
+      },
+      dedupeKey(queryBuilder, value) {
+        return pgConnectionFilterApplyAttribute("dedupeKey", "dedupe_key", spec_usageEvent.attributes.dedupe_key, queryBuilder, value);
       },
       not: ApiKeyFilter_notApply,
       or: ApiKeyFilter_orApply,
@@ -5513,9 +5691,7 @@ export const inputObjects = {
   },
   WorkspaceCondition: {
     plans: {
-      organizationId($condition, val) {
-        return applyAttributeCondition("organization_id", TYPES.uuid, $condition, val);
-      },
+      organizationId: ApiKeyCondition_organizationIdApply,
       rowId: ApiKeyCondition_rowIdApply,
       slug($condition, val) {
         return applyAttributeCondition("slug", TYPES.text, $condition, val);
@@ -5584,6 +5760,8 @@ export const enums = {
         });
         queryBuilder.setOrderIsUnique();
       },
+      ORGANIZATION_ID_ASC: ApiKeyOrderBy_ORGANIZATION_ID_ASCApply,
+      ORGANIZATION_ID_DESC: ApiKeyOrderBy_ORGANIZATION_ID_DESCApply,
       PRIMARY_KEY_ASC(queryBuilder) {
         api_keyUniques[0].attributes.forEach(attributeName => {
           queryBuilder.orderBy({
@@ -5720,6 +5898,18 @@ export const enums = {
           direction: "DESC"
         });
       },
+      DEDUPE_KEY_ASC(queryBuilder) {
+        queryBuilder.orderBy({
+          attribute: "dedupe_key",
+          direction: "ASC"
+        });
+      },
+      DEDUPE_KEY_DESC(queryBuilder) {
+        queryBuilder.orderBy({
+          attribute: "dedupe_key",
+          direction: "DESC"
+        });
+      },
       PRIMARY_KEY_ASC(queryBuilder) {
         usage_eventUniques[0].attributes.forEach(attributeName => {
           queryBuilder.orderBy({
@@ -5822,18 +6012,8 @@ export const enums = {
   },
   WorkspaceOrderBy: {
     values: {
-      ORGANIZATION_ID_ASC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "organization_id",
-          direction: "ASC"
-        });
-      },
-      ORGANIZATION_ID_DESC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "organization_id",
-          direction: "DESC"
-        });
-      },
+      ORGANIZATION_ID_ASC: ApiKeyOrderBy_ORGANIZATION_ID_ASCApply,
+      ORGANIZATION_ID_DESC: ApiKeyOrderBy_ORGANIZATION_ID_DESCApply,
       PRIMARY_KEY_ASC(queryBuilder) {
         workspaceUniques[0].attributes.forEach(attributeName => {
           queryBuilder.orderBy({

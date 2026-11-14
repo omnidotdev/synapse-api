@@ -14,6 +14,16 @@ import { EXPORTABLE, exportSchema } from "graphile-export";
 import { GraphQLError, printSchema } from "graphql";
 import { makeSchema } from "postgraphile";
 
+import { checkOrgPermission } from "lib/authz/orgPermission";
+import {
+  SpendingLimitRejectedError,
+  spendingLimits,
+} from "lib/billing/spendingLimit";
+import {
+  countWorkspaceKeys,
+  resolveKeyOrganization,
+} from "lib/billing/workspaceBilling";
+import { isProdEnv } from "lib/config/env.config";
 import graphilePreset from "lib/config/graphile.config";
 import { encrypt, generateApiKey } from "lib/crypto";
 import {
@@ -117,6 +127,16 @@ const generateGraphqlSchema = async () => {
     modules: {
       "graphile-export": { EXPORTABLE },
       "@omnidotdev/providers/billing": { isWithinLimit },
+      "lib/authz/orgPermission": { checkOrgPermission },
+      "lib/billing/spendingLimit": {
+        SpendingLimitRejectedError,
+        spendingLimits,
+      },
+      "lib/billing/workspaceBilling": {
+        countWorkspaceKeys,
+        resolveKeyOrganization,
+      },
+      "lib/config/env.config": { isProdEnv },
       "drizzle-orm": { and, desc, eq, gte, isNull, lte, ne, sql },
       graphql: { GraphQLError },
       "lib/crypto": { encrypt, generateApiKey },

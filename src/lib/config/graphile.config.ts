@@ -8,6 +8,7 @@ import {
   observerPlugin,
   preferencesPlugin,
   providerKeysPlugin,
+  spendingLimitPlugin,
   usageAggregationPlugin,
   workspacesPlugin,
 } from "lib/graphql/plugins";
@@ -27,6 +28,7 @@ const graphilePreset: GraphileConfig.Preset = {
     apiKeysPlugin,
     preferencesPlugin,
     providerKeysPlugin,
+    spendingLimitPlugin,
     usageAggregationPlugin,
     workspacesPlugin,
   ],
