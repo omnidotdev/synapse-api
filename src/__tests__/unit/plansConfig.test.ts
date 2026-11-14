@@ -27,7 +27,8 @@ const CATALOG_SSOT = {
   free: {
     monthlyPriceCents: 0,
     max_requests_per_month: 10_000,
-    overage_rate_per_1k: 0,
+    // free carries no overageRates (hard cap), mirrored as 0
+    request_overage_cents_per_1k: 0,
     requests_per_minute: 60,
     max_api_keys: 3,
     max_provider_keys: 6,
@@ -38,7 +39,8 @@ const CATALOG_SSOT = {
   pro: {
     monthlyPriceCents: 2_900,
     max_requests_per_month: 100_000,
-    overage_rate_per_1k: 20,
+    // catalog overageRates.requests, cents per 1000 requests
+    request_overage_cents_per_1k: 20,
     requests_per_minute: 500,
     max_api_keys: 25,
     max_provider_keys: 10,
@@ -49,7 +51,7 @@ const CATALOG_SSOT = {
     monthlyPriceCents: 7_900,
     // capped with overage in omni-api #44 (was unlimited)
     max_requests_per_month: 1_000_000,
-    overage_rate_per_1k: 10,
+    request_overage_cents_per_1k: 10,
     requests_per_minute: 2_000,
     max_api_keys: -1,
     max_provider_keys: -1,
@@ -96,11 +98,11 @@ describe("synapse catalog parity", () => {
     }
   });
 
-  describe("overage_rate_per_1k (requestLimits.config.ts)", () => {
+  describe("overageRates.requests (requestLimits.config.ts)", () => {
     for (const tier of TIERS) {
       test(`${tier} matches catalog SSOT`, () => {
-        expect(PLAN_REQUEST_LIMITS[tier].overageRatePer1k).toBe(
-          CATALOG_SSOT[tier].overage_rate_per_1k,
+        expect(PLAN_REQUEST_LIMITS[tier].overageCentsPer1k).toBe(
+          CATALOG_SSOT[tier].request_overage_cents_per_1k,
         );
       });
     }
