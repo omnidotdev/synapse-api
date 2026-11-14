@@ -25,6 +25,15 @@ export const apiKeyTable = pgTable(
       .notNull()
       .references(() => userTable.id),
     workspaceId: uuid(),
+    /**
+     * Workspace (Omni organization) a direct Synapse key belongs to and bills.
+     * Synapse subscriptions are held by a workspace, so a direct key meters,
+     * resolves its tier, and counts toward quotas against this organization
+     * (a user's personal workspace by default). Null for product-scoped keys,
+     * which bill their own product entity, and for legacy direct keys created
+     * before keys belonged to a workspace (those still bill the key owner)
+     */
+    organizationId: uuid(),
     keyHash: text().notNull().unique(),
     keyHint: text().notNull(),
     name: text().notNull(),
@@ -49,6 +58,7 @@ export const apiKeyTable = pgTable(
     uniqueIndex().on(table.id),
     uniqueIndex().on(table.keyHash),
     index().on(table.userId),
+    index().on(table.organizationId),
     // One current managed key per (user, source, product, billing entity), so
     // a user in two organizations holds independent keys. Rotated keys in
     // their grace window (expires_at set) and revoked keys fall outside it.
@@ -71,6 +81,11 @@ export const apiKeyTable = pgTable(
     check(
       "api_key_app_id_slug",
       sql`${table.appId} IS NULL OR ${table.appId} ~ '^[a-z][a-z0-9-]{0,62}$'`,
+    ),
+    // A product key bills its product entity, never a Synapse workspace
+    check(
+      "api_key_organization_direct_only",
+      sql`${table.organizationId} IS NULL OR ${table.appId} IS NULL`,
     ),
     check(
       "api_key_billing_entity_scoped",

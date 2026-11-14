@@ -53,6 +53,10 @@ type ApiKey implements Node {
   revokedAt: Datetime
   createdAt: Datetime
   updatedAt: Datetime
+  appId: String
+  billingEntityType: String
+  billingEntityId: String
+  organizationId: UUID
 
   """Reads a single `User` that is related to this `ApiKey`."""
   user: User
@@ -302,6 +306,9 @@ input ApiKeyCondition {
 
   """Checks for equality with the object’s `keyHash` field."""
   keyHash: String
+
+  """Checks for equality with the object’s `organizationId` field."""
+  organizationId: UUID
 }
 
 """
@@ -316,6 +323,9 @@ input ApiKeyFilter {
 
   """Filter by the object’s `keyHash` field."""
   keyHash: StringFilter
+
+  """Filter by the object’s `organizationId` field."""
+  organizationId: UUIDFilter
 
   """Filter by the object’s `apiKeyProviders` relation."""
   apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
@@ -734,6 +744,9 @@ input UsageEventFilter {
   """Filter by the object’s `createdAt` field."""
   createdAt: DatetimeFilter
 
+  """Filter by the object’s `dedupeKey` field."""
+  dedupeKey: StringFilter
+
   """Filter by the object’s `apiKey` relation."""
   apiKey: ApiKeyFilter
 
@@ -846,6 +859,8 @@ enum ApiKeyOrderBy {
   USER_ID_DESC
   KEY_HASH_ASC
   KEY_HASH_DESC
+  ORGANIZATION_ID_ASC
+  ORGANIZATION_ID_DESC
 }
 
 """A connection to a list of `ProviderKey` values."""
@@ -1036,6 +1051,7 @@ type UsageEvent implements Node {
   costCents: Int!
   mode: String!
   createdAt: Datetime
+  dedupeKey: String
 
   """Reads a single `ApiKey` that is related to this `UsageEvent`."""
   apiKey: ApiKey
@@ -1069,6 +1085,9 @@ input UsageEventCondition {
 
   """Checks for equality with the object’s `createdAt` field."""
   createdAt: Datetime
+
+  """Checks for equality with the object’s `dedupeKey` field."""
+  dedupeKey: String
 }
 
 """Methods to use when ordering `UsageEvent`."""
@@ -1084,6 +1103,8 @@ enum UsageEventOrderBy {
   API_KEY_ID_DESC
   CREATED_AT_ASC
   CREATED_AT_DESC
+  DEDUPE_KEY_ASC
+  DEDUPE_KEY_DESC
 }
 
 type UserPreference implements Node {
@@ -1296,20 +1317,32 @@ type Observer {
   email: String!
 
   """
-  List active API keys for the current user, optionally filtered by workspace.
+  List active API keys. With `organizationId`, every key that belongs to
+  that workspace (members only); otherwise the current user's own keys,
+  optionally filtered by Synapse workspace resource.
   """
-  apiKeys(workspaceId: UUID): [ApiKeyInfo!]!
+  apiKeys(organizationId: UUID, workspaceId: UUID): [ApiKeyInfo!]!
 
   """Fetch current user's preferences."""
   preferences: UserPreferences
 
   """List provider keys for the current user."""
   providerKeys: [ProviderKeyInfo!]!
+
+  """A workspace's Synapse spending limit (workspace members only)."""
+  spendingLimit(organizationId: UUID!): SpendingLimit
 }
 
 input GenerateApiKeyInput {
   name: String!
   mode: String!
+
+  """
+  Workspace (organization) the key belongs to and bills. Required unless
+  `workspaceId` names a Synapse workspace resource, whose organization
+  the key then inherits
+  """
+  organizationId: UUID
   workspaceId: UUID
 }
 
@@ -1362,6 +1395,19 @@ type ProviderKeyInfo {
   createdAt: Datetime
   updatedAt: Datetime
   modelPreference: String
+}
+
+type SpendingLimit {
+  organizationId: UUID!
+
+  """Hard monthly cap on request overage, in cents (null when unset)"""
+  hardLimitCents: Int
+
+  """Overage owed this period, in cents, as last settled"""
+  currentSpendCents: Int!
+
+  """Whether requests past the included allowance are paused at the limit"""
+  suspended: Boolean!
 }
 
 type ModelBreakdown {
@@ -1424,14 +1470,14 @@ type Query implements Node {
   """Get a single `User`."""
   userByIdentityProviderId(identityProviderId: UUID!): User
 
+  """Get a single `UsageEvent`."""
+  usageEvent(rowId: UUID!): UsageEvent
+
   """Get a single `ApiKey`."""
   apiKey(rowId: UUID!): ApiKey
 
   """Get a single `ApiKey`."""
   apiKeyByKeyHash(keyHash: String!): ApiKey
-
-  """Get a single `UsageEvent`."""
-  usageEvent(rowId: UUID!): UsageEvent
 
   """Reads a single `ApiKeyProvider` using its globally unique `ID`."""
   apiKeyProviderById(
@@ -1469,12 +1515,6 @@ type Query implements Node {
     id: ID!
   ): User
 
-  """Reads a single `ApiKey` using its globally unique `ID`."""
-  apiKeyById(
-    """The globally unique `ID` to be used in selecting a single `ApiKey`."""
-    id: ID!
-  ): ApiKey
-
   """Reads a single `UsageEvent` using its globally unique `ID`."""
   usageEventById(
     """
@@ -1482,6 +1522,12 @@ type Query implements Node {
     """
     id: ID!
   ): UsageEvent
+
+  """Reads a single `ApiKey` using its globally unique `ID`."""
+  apiKeyById(
+    """The globally unique `ID` to be used in selecting a single `ApiKey`."""
+    id: ID!
+  ): ApiKey
 
   """Reads and enables pagination through a set of `ApiKeyProvider`."""
   apiKeyProviders(
@@ -1653,40 +1699,6 @@ type Query implements Node {
     orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
   ): UserConnection
 
-  """Reads and enables pagination through a set of `ApiKey`."""
-  apiKeys(
-    """Only read the first `n` values of the set."""
-    first: Int
-
-    """Only read the last `n` values of the set."""
-    last: Int
-
-    """
-    Skip the first `n` values from our `after` cursor, an alternative to cursor
-    based pagination. May not be used with `last`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ApiKeyCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ApiKeyFilter
-
-    """The method to use when ordering `ApiKey`."""
-    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ApiKeyConnection
-
   """Reads and enables pagination through a set of `UsageEvent`."""
   usageEvents(
     """Only read the first `n` values of the set."""
@@ -1720,6 +1732,40 @@ type Query implements Node {
     """The method to use when ordering `UsageEvent`."""
     orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
   ): UsageEventConnection
+
+  """Reads and enables pagination through a set of `ApiKey`."""
+  apiKeys(
+    """Only read the first `n` values of the set."""
+    first: Int
+
+    """Only read the last `n` values of the set."""
+    last: Int
+
+    """
+    Skip the first `n` values from our `after` cursor, an alternative to cursor
+    based pagination. May not be used with `last`.
+    """
+    offset: Int
+
+    """Read all values in the set before (above) this cursor."""
+    before: Cursor
+
+    """Read all values in the set after (below) this cursor."""
+    after: Cursor
+
+    """
+    A condition to be used in determining which values should be returned by the collection.
+    """
+    condition: ApiKeyCondition
+
+    """
+    A filter to be used in determining which values should be returned by the collection.
+    """
+    filter: ApiKeyFilter
+
+    """The method to use when ordering `ApiKey`."""
+    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
+  ): ApiKeyConnection
 
   """The currently authenticated user. Returns null if not authenticated."""
   observer: Observer
@@ -1773,6 +1819,12 @@ type Mutation {
 
   """Delete a provider key. Verifies ownership before deletion."""
   removeProviderKey(id: UUID!): Boolean
+
+  """
+  Set a workspace's hard spending limit in cents (workspace admins only).
+  Raising it above the overage already owed resumes paused requests.
+  """
+  setSpendingLimit(organizationId: UUID!, hardLimitCents: Int!): SpendingLimit!
 
   """Create a new workspace within an organization"""
   addWorkspace(

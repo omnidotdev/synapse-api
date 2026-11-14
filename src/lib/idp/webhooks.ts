@@ -7,7 +7,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { AUTH_WEBHOOK_SECRET } from "lib/config/env.config";
@@ -51,7 +51,7 @@ const verifySignature = (
  * Handle organization deletion.
  * Clean up org-scoped resources (workspaces, API keys).
  */
-const handleOrganizationDeleted = async (
+export const handleOrganizationDeleted = async (
   payload: IDPWebhookPayload,
 ): Promise<void> => {
   const { organizationId, deletedAt } = payload;
@@ -63,6 +63,19 @@ const handleOrganizationDeleted = async (
     .where(eq(workspaceTable.organizationId, organizationId));
 
   const workspaceIds = workspaces.map((w) => w.id);
+
+  // Revoke the deleted workspace's own direct keys: they bill an organization
+  // that no longer exists
+  const revokedKeys = await dbPool
+    .update(apiKeyTable)
+    .set({ revokedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(apiKeyTable.organizationId, organizationId),
+        isNull(apiKeyTable.revokedAt),
+      ),
+    )
+    .returning({ id: apiKeyTable.id });
 
   if (workspaceIds.length > 0) {
     await dbPool.transaction(async (tx) => {
@@ -87,6 +100,7 @@ const handleOrganizationDeleted = async (
       organizationId,
       deletedAt,
       workspacesRemoved: workspaceIds.length,
+      apiKeysRevoked: revokedKeys.length,
       timestamp: new Date().toISOString(),
     }),
   );

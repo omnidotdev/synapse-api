@@ -1,8 +1,14 @@
 import { isWithinLimit } from "@omnidotdev/providers/billing";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
 import { storedProductScope } from "lib/billing/productScope";
+import {
+  countUserRequests,
+  countWorkspaceRequests,
+  startOfUtcMonth,
+  workspaceBillingEntity,
+} from "lib/billing/workspaceBilling";
 import { GATEWAY_SECRET } from "lib/config/env.config";
 import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import {
@@ -16,7 +22,6 @@ import {
   apiKeyProviderTable,
   apiKeyTable,
   providerKeyTable,
-  usageEventTable,
   userTable,
 } from "lib/db/schema";
 import { billing } from "lib/providers";
@@ -30,8 +35,9 @@ import type { PlanTier } from "lib/config/plans.config";
  * Enforce the direct-key `max_requests_per_month` quota (the core revenue
  * control). Returns the rejection body, or `null` when the request may proceed.
  *
- * Counts this user's requests for the current calendar month (one usage_event
- * row == one proxied request) and compares against the tier limit. A paid tier
+ * `monthlyRequests` is the billed entity's direct request count for the current
+ * calendar month (one usage_event row == one proxied request): the whole
+ * workspace for a workspace key, the owner for a legacy key. A paid tier
  * that sells request overage (a positive REQUEST_OVERAGE_RATE_KEY rate) lets
  * requests through: the gateway still meters each one into Aether, which
  * invoices the requests above the allowance and enforces the spending limit.
@@ -40,29 +46,11 @@ import type { PlanTier } from "lib/config/plans.config";
  * usage asynchronously, so this check is approximate at TTL/flush granularity,
  * which is acceptable for a monthly quota
  */
-const checkMonthlyRequestQuota = async (
-  userId: string,
+const checkMonthlyRequestQuota = (
+  monthlyRequests: number,
   entitlements: EntitlementsResponse | null,
   plan: PlanTier,
 ) => {
-  const startOfMonth = new Date();
-  startOfMonth.setUTCDate(1);
-  startOfMonth.setUTCHours(0, 0, 0, 0);
-
-  const [monthlyUsage] = await dbPool
-    .select({
-      requestCount: sql<number>`count(*)::int`,
-    })
-    .from(usageEventTable)
-    .where(
-      and(
-        eq(usageEventTable.userId, userId),
-        gte(usageEventTable.createdAt, startOfMonth.toISOString()),
-      ),
-    );
-
-  const monthlyRequests = monthlyUsage?.requestCount ?? 0;
-
   const withinRequestQuota = isWithinLimit(
     entitlements,
     "max_requests_per_month",
@@ -168,6 +156,10 @@ const resolveKeyRoute = new Elysia().post(
       return { error: "key_misconfigured" };
     }
 
+    // A direct key bills the workspace that owns it (the entity Synapse
+    // checkout subscribes). Null for product keys and legacy direct keys
+    const workspaceEntity = scope ? null : workspaceBillingEntity(apiKey);
+
     // Fetch entitlements once for plan resolution and feature checks
     let plan = (user.plan ?? "free") as PlanTier;
     const entitlements = await (scope
@@ -176,7 +168,13 @@ const resolveKeyRoute = new Elysia().post(
           scope.billingEntity.entityId,
           scope.appId,
         )
-      : billing.getEntitlements("user", user.identityProviderId, "synapse")
+      : workspaceEntity
+        ? billing.getEntitlements(
+            workspaceEntity.entityType,
+            workspaceEntity.entityId,
+            "synapse",
+          )
+        : billing.getEntitlements("user", user.identityProviderId, "synapse")
     ).catch(() => null);
 
     // Reconcile the plan against the LIVE tier entitlement in BOTH directions.
@@ -201,9 +199,9 @@ const resolveKeyRoute = new Elysia().post(
       if (livePlan !== plan) {
         plan = livePlan;
         // Backfill the DB so future lookups are fast and consistent. Only for
-        // direct keys: user.plan is the user's Synapse tier, and a product's
-        // tier must never overwrite it
-        if (!scope) {
+        // legacy user-billed keys: user.plan is the user's own Synapse tier,
+        // and neither a product's nor a workspace's tier may overwrite it
+        if (!scope && !workspaceEntity) {
           dbPool
             .update(userTable)
             .set({ plan, updatedAt: new Date().toISOString() })
@@ -244,8 +242,13 @@ const resolveKeyRoute = new Elysia().post(
     // Aether meters; usage_event counts the user's direct Synapse traffic, so the
     // Synapse monthly quota below applies to direct keys only
     if (!scope) {
-      const rejection = await checkMonthlyRequestQuota(
-        apiKey.userId,
+      const since = startOfUtcMonth();
+      const monthlyRequests = workspaceEntity
+        ? await countWorkspaceRequests(dbPool, workspaceEntity.entityId, since)
+        : await countUserRequests(dbPool, apiKey.userId, since);
+
+      const rejection = checkMonthlyRequestQuota(
+        monthlyRequests,
         entitlements,
         plan,
       );
@@ -333,9 +336,11 @@ const resolveKeyRoute = new Elysia().post(
       rateLimits,
       providerKeys,
       // The gateway bills usage, credits, and entitlements against this product
-      // and entity; null for a direct key (gateway's own app, key owner)
+      // and entity. A direct key bills the gateway's own app (appId null) as
+      // the workspace that owns it; only a legacy key leaves both null, which
+      // the gateway bills as the key owner
       appId: scope?.appId ?? null,
-      billingEntity: scope?.billingEntity ?? null,
+      billingEntity: scope?.billingEntity ?? workspaceEntity,
     };
   },
   {

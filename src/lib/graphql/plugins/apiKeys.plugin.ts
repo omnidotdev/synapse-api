@@ -1,9 +1,14 @@
 import { isWithinLimit } from "@omnidotdev/providers/billing";
-import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { EXPORTABLE } from "graphile-export";
 import { gql, makeExtendSchemaPlugin } from "graphile-utils";
 import { GraphQLError } from "graphql";
 
+import { checkOrgPermission } from "lib/authz/orgPermission";
+import {
+  countWorkspaceKeys,
+  resolveKeyOrganization,
+} from "lib/billing/workspaceBilling";
 import { isProdEnv } from "lib/config/env.config";
 import { MAX_API_KEYS } from "lib/config/planLimits.config";
 import { generateApiKey } from "lib/crypto";
@@ -26,41 +31,18 @@ const DEFAULT_LIMITS = {
 };
 
 /**
- * Assert the observer has a specific permission on an organization via Warden.
- * Fails closed in production: if the authz client is absent the check denies
- * rather than silently allowing. In development it no-ops when unconfigured.
+ * Assert the observer has a specific permission on an organization via Warden
+ * (checked by identity provider id; fails closed in production)
  */
 const assertOrgPermission = EXPORTABLE(
-  (authz, GraphQLError, isProdEnv) =>
-    async (
-      userId: string,
+  (authz, checkOrgPermission, isProdEnv) =>
+    (
+      observer: { identityProviderId: string },
       organizationId: string,
       action: WardenRelation<"organization">,
-    ) => {
-      if (!authz) {
-        if (isProdEnv) {
-          throw new GraphQLError("Insufficient permissions", {
-            extensions: { code: "FORBIDDEN" },
-          });
-        }
-
-        return;
-      }
-
-      const allowed = await authz.checkPermission(
-        userId,
-        "organization",
-        organizationId,
-        action,
-      );
-
-      if (!allowed) {
-        throw new GraphQLError(`Insufficient permissions: requires ${action}`, {
-          extensions: { code: "FORBIDDEN" },
-        });
-      }
-    },
-  [authz, GraphQLError, isProdEnv],
+    ) =>
+      checkOrgPermission(authz, isProdEnv, observer, organizationId, action),
+  [authz, checkOrgPermission, isProdEnv],
 );
 
 /**
@@ -71,6 +53,12 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
     input GenerateApiKeyInput {
       name: String!
       mode: String!
+      """
+      Workspace (organization) the key belongs to and bills. Required unless
+      \`workspaceId\` names a Synapse workspace resource, whose organization
+      the key then inherits
+      """
+      organizationId: UUID
       workspaceId: UUID
     }
 
@@ -100,9 +88,11 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
 
     extend type Observer {
       """
-      List active API keys for the current user, optionally filtered by workspace.
+      List active API keys. With \`organizationId\`, every key that belongs to
+      that workspace (members only); otherwise the current user's own keys,
+      optionally filtered by Synapse workspace resource.
       """
-      apiKeys(workspaceId: UUID): [ApiKeyInfo!]!
+      apiKeys(organizationId: UUID, workspaceId: UUID): [ApiKeyInfo!]!
     }
 
     extend type Mutation {
@@ -168,11 +158,32 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           workspaceTable,
         ) =>
           async function apiKeys(
-            observer: { id: string },
-            args: { workspaceId?: string },
+            observer: { id: string; identityProviderId: string },
+            args: { organizationId?: string; workspaceId?: string },
             ctx: GraphQLContext,
           ) {
             const { db } = ctx;
+
+            // A workspace's keys are visible to all of its members, since the
+            // workspace holds the subscription they bill
+            if (args.organizationId) {
+              await assertOrgPermission(
+                observer,
+                args.organizationId,
+                "member",
+              );
+
+              return db
+                .select()
+                .from(apiKeyTable)
+                .where(
+                  and(
+                    eq(apiKeyTable.organizationId, args.organizationId),
+                    isNull(apiKeyTable.revokedAt),
+                  ),
+                )
+                .orderBy(desc(apiKeyTable.createdAt));
+            }
 
             // If workspace-scoped, verify org-level member permission
             if (args.workspaceId) {
@@ -183,7 +194,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
 
               if (workspace) {
                 await assertOrgPermission(
-                  observer.id,
+                  observer,
                   workspace.organizationId,
                   "member",
                 );
@@ -220,24 +231,26 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
       generateApiKey: EXPORTABLE(
         (
           GraphQLError,
-          and,
           apiKeyTable,
           assertOrgPermission,
           billing,
+          countWorkspaceKeys,
           DEFAULT_LIMITS,
-          eq,
           generateApiKey,
-          isNull,
           isWithinLimit,
           logAuditEvent,
-          ne,
           publish,
-          workspaceTable,
+          resolveKeyOrganization,
         ) =>
           async function generateApiKey_(
             _source: unknown,
             args: {
-              input: { name: string; mode: string; workspaceId?: string };
+              input: {
+                name: string;
+                mode: string;
+                organizationId?: string;
+                workspaceId?: string;
+              };
             },
             ctx: GraphQLContext,
           ) {
@@ -258,26 +271,6 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If workspace-scoped, verify org-level editor permission
-            if (workspaceId) {
-              const [workspace] = await db
-                .select({ organizationId: workspaceTable.organizationId })
-                .from(workspaceTable)
-                .where(eq(workspaceTable.id, workspaceId));
-
-              if (!workspace) {
-                throw new GraphQLError("Workspace not found", {
-                  extensions: { code: "NOT_FOUND" },
-                });
-              }
-
-              await assertOrgPermission(
-                observer.id,
-                workspace.organizationId,
-                "admin",
-              );
-            }
-
             // Only "byok" is allowed via user-facing mutations; "managed"
             // keys are system-provisioned via internal routes
             if (mode !== "byok") {
@@ -287,38 +280,31 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               );
             }
 
-            // Fetch entitlements before the transaction (external call)
+            // Every key belongs to the workspace it bills; creating one is a
+            // workspace admin action (a personal workspace's owner qualifies)
+            const organizationId = await resolveKeyOrganization(db, args.input);
+
+            await assertOrgPermission(observer, organizationId, "admin");
+
+            // The workspace's plan sets its key limit (external call, before
+            // the transaction)
             const entitlements = await billing
-              .getEntitlements(
-                "user",
-                observer.identityProviderId ?? observer.id,
-                "synapse",
-              )
+              .getEntitlements("organization", organizationId, "synapse")
               .catch(() => null);
 
             const { raw, hash, hint } = generateApiKey();
 
             // Wrap count check + insert in a transaction to prevent TOCTOU races
             const apiKey = await db.transaction(async (tx) => {
-              // Enforce max_api_keys entitlement (managed keys are excluded,
-              // they are system-provisioned by other Omni apps and should not
-              // consume the user's quota)
-              const activeKeys = await tx
-                .select({ id: apiKeyTable.id })
-                .from(apiKeyTable)
-                .where(
-                  and(
-                    eq(apiKeyTable.userId, observer.id),
-                    isNull(apiKeyTable.revokedAt),
-                    ne(apiKeyTable.mode, "managed"),
-                  ),
-                );
+              // Enforce max_api_keys across the workspace (managed keys are
+              // excluded, they are system-provisioned by other Omni apps)
+              const activeKeys = await countWorkspaceKeys(tx, organizationId);
 
               if (
                 !isWithinLimit(
                   entitlements,
                   "max_api_keys",
-                  activeKeys.length,
+                  activeKeys,
                   DEFAULT_LIMITS,
                 )
               ) {
@@ -334,6 +320,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                   userId: observer.id,
                   name,
                   mode,
+                  organizationId,
                   workspaceId: workspaceId ?? null,
                   keyHash: hash,
                   keyHint: hint,
@@ -347,12 +334,13 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
             void publish({
               type: "synapse.api_key.created",
               source: "omni.synapse",
-              organizationId: observer.id,
+              organizationId,
               subject: observer.id,
               data: {
                 apiKeyId: apiKey.id,
                 name,
                 mode,
+                organizationId,
                 workspaceId: workspaceId ?? null,
               },
             });
@@ -368,7 +356,12 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 action: "api_key.created",
                 resource: "api_key",
                 resourceId: apiKey.id,
-                details: { name, mode, workspaceId: workspaceId ?? null },
+                details: {
+                  name,
+                  mode,
+                  organizationId,
+                  workspaceId: workspaceId ?? null,
+                },
               },
             );
 
@@ -380,19 +373,16 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
           },
         [
           GraphQLError,
-          and,
           apiKeyTable,
           assertOrgPermission,
           billing,
+          countWorkspaceKeys,
           DEFAULT_LIMITS,
-          eq,
           generateApiKey,
-          isNull,
           isWithinLimit,
           logAuditEvent,
-          ne,
           publish,
-          workspaceTable,
+          resolveKeyOrganization,
         ],
       ),
 
@@ -421,23 +411,35 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               });
             }
 
-            // If the key is workspace-scoped, verify org-level editor permission
             const [existing] = await db
-              .select({ workspaceId: apiKeyTable.workspaceId })
+              .select({
+                userId: apiKeyTable.userId,
+                organizationId: apiKeyTable.organizationId,
+                workspaceId: apiKeyTable.workspaceId,
+              })
               .from(apiKeyTable)
-              .where(
-                and(
-                  eq(apiKeyTable.id, args.id),
-                  eq(apiKeyTable.userId, observer.id),
-                ),
-              );
+              .where(eq(apiKeyTable.id, args.id));
 
-            if (!existing) {
+            const isOwner = existing?.userId === observer.id;
+
+            // A key is revocable by its creator, or by an admin of the
+            // workspace it belongs to (a team admin cleaning up a member's key)
+            if (!existing || (!isOwner && !existing.organizationId)) {
               throw new GraphQLError("API key not found", {
                 extensions: { code: "NOT_FOUND" },
               });
             }
 
+            if (!isOwner && existing.organizationId) {
+              await assertOrgPermission(
+                observer,
+                existing.organizationId,
+                "admin",
+              );
+            }
+
+            // If the key is workspace-resource-scoped, verify org-level editor
+            // permission
             if (existing.workspaceId) {
               const [workspace] = await db
                 .select({ organizationId: workspaceTable.organizationId })
@@ -446,7 +448,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
 
               if (workspace) {
                 await assertOrgPermission(
-                  observer.id,
+                  observer,
                   workspace.organizationId,
                   "admin",
                 );
@@ -460,11 +462,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
                 updatedAt: new Date().toISOString(),
               })
               .where(
-                and(
-                  eq(apiKeyTable.id, args.id),
-                  eq(apiKeyTable.userId, observer.id),
-                  isNull(apiKeyTable.revokedAt),
-                ),
+                and(eq(apiKeyTable.id, args.id), isNull(apiKeyTable.revokedAt)),
               )
               .returning();
 
@@ -473,7 +471,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
               void publish({
                 type: "synapse.api_key.revoked",
                 source: "omni.synapse",
-                organizationId: observer.id,
+                organizationId: existing.organizationId ?? observer.id,
                 subject: observer.id,
                 data: { apiKeyId: args.id },
               });
@@ -562,7 +560,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
 
               if (workspace) {
                 await assertOrgPermission(
-                  observer.id,
+                  observer,
                   workspace.organizationId,
                   "admin",
                 );
@@ -662,7 +660,7 @@ const apiKeysPlugin = makeExtendSchemaPlugin({
 
               if (workspace) {
                 await assertOrgPermission(
-                  observer.id,
+                  observer,
                   workspace.organizationId,
                   "admin",
                 );
