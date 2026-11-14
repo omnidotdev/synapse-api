@@ -49,6 +49,22 @@ export const apiKeyTable = pgTable(
     uniqueIndex().on(table.id),
     uniqueIndex().on(table.keyHash),
     index().on(table.userId),
+    // One current managed key per (user, source, product, billing entity), so
+    // a user in two organizations holds independent keys. Rotated keys in
+    // their grace window (expires_at set) and revoked keys fall outside it.
+    // Direct keys carry no product or entity, so those coalesce to '' to stay
+    // unique too (a plain unique index treats NULLs as distinct)
+    uniqueIndex("api_key_managed_scope_idx")
+      .on(
+        table.userId,
+        table.name,
+        sql`coalesce(${table.appId}, '')`,
+        sql`coalesce(${table.billingEntityType}, '')`,
+        sql`coalesce(${table.billingEntityId}, '')`,
+      )
+      .where(
+        sql`${table.mode} = 'managed' AND ${table.revokedAt} IS NULL AND ${table.expiresAt} IS NULL`,
+      ),
     // The gateway splices app_id into Aether URL paths, so only a lowercase
     // slug is ever stored. A product key always carries a complete billing
     // entity and a direct key carries none, so a key can never be half-scoped
