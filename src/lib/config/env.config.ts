@@ -20,6 +20,8 @@ export const {
   BILLING_SERVICE_API_KEY,
   /** Authorization PDP API URL */
   AUTHZ_API_URL,
+  /** Service key Warden requires on PDP checks */
+  AUTHZ_SERVICE_KEY,
   /** Enable authorization checks */
 
   /** Protect GraphQL routes (require authentication) */
@@ -60,6 +62,10 @@ if (!BILLING_BASE_URL)
   console.warn("BILLING_BASE_URL not set, billing disabled");
 if (!AUTHZ_API_URL)
   console.warn("AUTHZ_API_URL not set, authorization disabled");
+if (AUTHZ_API_URL && !AUTHZ_SERVICE_KEY)
+  console.warn(
+    "AUTHZ_SERVICE_KEY not set, workspace authorization checks will be denied",
+  );
 if (!VORTEX_API_URL)
   console.warn("VORTEX_API_URL not set, event streaming disabled");
 if (!AUTH_URL) console.warn("AUTH_URL not set, vault key proxying disabled");
