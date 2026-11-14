@@ -8,6 +8,7 @@ import { PLAN_RATE_LIMITS } from "lib/config/plans.config";
 import {
   PLAN_REQUEST_LIMITS,
   REQUEST_LIMITS_FALLBACK,
+  REQUEST_OVERAGE_RATE_KEY,
 } from "lib/config/requestLimits.config";
 import { constantTimeEqual, decrypt, hashApiKey } from "lib/crypto";
 import { dbPool } from "lib/db";
@@ -30,12 +31,14 @@ import type { PlanTier } from "lib/config/plans.config";
  * control). Returns the rejection body, or `null` when the request may proceed.
  *
  * Counts this user's requests for the current calendar month (one usage_event
- * row == one proxied request) and compares against the tier limit. When the
- * tier permits overage (overage_rate_per_1k > 0) requests are allowed through
- * and billed as overage via Aether; otherwise the quota is a hard cap and the
- * request is rejected. The gateway caches resolve results for a short TTL and
- * reports usage asynchronously, so this check is approximate at TTL/flush
- * granularity, which is acceptable for a monthly quota
+ * row == one proxied request) and compares against the tier limit. A paid tier
+ * that sells request overage (a positive REQUEST_OVERAGE_RATE_KEY rate) lets
+ * requests through: the gateway still meters each one into Aether, which
+ * invoices the requests above the allowance and enforces the spending limit.
+ * Free has no payment method, so its quota is always a hard cap and the request
+ * is rejected. The gateway caches resolve results for a short TTL and reports
+ * usage asynchronously, so this check is approximate at TTL/flush granularity,
+ * which is acceptable for a monthly quota
  */
 const checkMonthlyRequestQuota = async (
   userId: string,
@@ -69,18 +72,21 @@ const checkMonthlyRequestQuota = async (
 
   if (withinRequestQuota) return null;
 
-  // Resolve whether this tier permits billable overage. Prefer the Aether
-  // entitlement value, falling back to the SSOT-mirrored config
-  const overageEntitlement = entitlements?.entitlements?.find(
-    (e) => e.featureKey === "overage_rate_per_1k",
-  );
-  const overageRatePer1k =
-    overageEntitlement?.value !== undefined
-      ? Number(overageEntitlement.value)
-      : (PLAN_REQUEST_LIMITS[plan] ?? PLAN_REQUEST_LIMITS.free)
-          .overageRatePer1k;
+  // Resolve whether this tier sells billable request overage. Free never
+  // does. Prefer the catalog rate Aether synced onto the account, falling back
+  // to the SSOT-mirrored config when Aether has not supplied it
+  if (plan !== "free") {
+    const overageEntitlement = entitlements?.entitlements?.find(
+      (e) => e.featureKey === REQUEST_OVERAGE_RATE_KEY,
+    );
+    const overageCentsPer1k =
+      overageEntitlement?.value !== undefined
+        ? Number(overageEntitlement.value)
+        : (PLAN_REQUEST_LIMITS[plan] ?? PLAN_REQUEST_LIMITS.free)
+            .overageCentsPer1k;
 
-  if (overageRatePer1k && overageRatePer1k > 0) return null;
+    if (overageCentsPer1k > 0) return null;
+  }
 
   // Hard cap: reject the request with a clear over-limit response
   return {

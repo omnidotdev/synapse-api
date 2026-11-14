@@ -476,9 +476,10 @@ describe("POST /internal/resolve-key", () => {
 			mode: "byok",
 		});
 
-		// Pro tier permits overage (overage_rate_per_1k = 20), so being over the
-		// 100,000 limit must NOT block; mock entitlements to assert the overage path
-		// without seeding 100k rows
+		// Pro tier sells request overage (the catalog's typed overageRates.requests,
+		// synced by Aether as overage_rate_cents:requests = 20 cents per 1K), so
+		// being over the 100,000 limit must NOT block; mock entitlements to assert
+		// the overage path without seeding 100k rows
 		const getEntitlementsSpy = spyOn(
 			billing,
 			"getEntitlements",
@@ -486,7 +487,7 @@ describe("POST /internal/resolve-key", () => {
 			entitlements: [
 				{ featureKey: "tier", value: "pro" },
 				{ featureKey: "max_requests_per_month", value: 1 },
-				{ featureKey: "overage_rate_per_1k", value: 20 },
+				{ featureKey: "overage_rate_cents:requests", value: 20 },
 			],
 		} as unknown as EntitlementsResponse);
 
@@ -518,7 +519,6 @@ describe("POST /internal/resolve-key", () => {
 			entitlements: [
 				{ featureKey: "tier", value: "free" },
 				{ featureKey: "max_requests_per_month", value: 1 },
-				{ featureKey: "overage_rate_per_1k", value: 0 },
 			],
 		} as unknown as EntitlementsResponse);
 
@@ -529,6 +529,72 @@ describe("POST /internal/resolve-key", () => {
 
 		const body = await res.json();
 		expect(body.error).toBe("monthly_request_limit_exceeded");
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("free never gets overage, even with a stray rate", async () => {
+		const user = await userFactory.create(ctx.db);
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		// Free has no payment method, so it hard-caps whatever rates are present,
+		// including the retired untyped overage_rate_per_1k still on old accounts
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "free" },
+				{ featureKey: "max_requests_per_month", value: 1 },
+				{ featureKey: "overage_rate_per_1k", value: 20 },
+				{ featureKey: "overage_rate_cents:requests", value: 20 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		await seedUsageEvents(user.id, apiKey.id, 2);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(429);
+
+		getEntitlementsSpy.mockRestore();
+	});
+
+	test("reads the typed request rate, not the retired overage_rate_per_1k", async () => {
+		const user = await userFactory.create(ctx.db, { plan: "pro" });
+		const { raw, hash, hint } = generateApiKey();
+
+		const apiKey = await apiKeyFactory.create(ctx.db, {
+			userId: user.id,
+			keyHash: hash,
+			keyHint: hint,
+			mode: "byok",
+		});
+
+		// A paid tier whose typed rate is 0 sells no overage; the stale untyped
+		// key left on the account must not reopen it
+		const getEntitlementsSpy = spyOn(
+			billing,
+			"getEntitlements",
+		).mockResolvedValue({
+			entitlements: [
+				{ featureKey: "tier", value: "pro" },
+				{ featureKey: "max_requests_per_month", value: 1 },
+				{ featureKey: "overage_rate_per_1k", value: 20 },
+				{ featureKey: "overage_rate_cents:requests", value: 0 },
+			],
+		} as unknown as EntitlementsResponse);
+
+		await seedUsageEvents(user.id, apiKey.id, 2);
+
+		const res = await resolveKey(raw, GATEWAY_SECRET);
+		expect(res.status).toBe(429);
 
 		getEntitlementsSpy.mockRestore();
 	});

@@ -6,7 +6,8 @@ import type { PlanTier } from "lib/config/plans.config";
  * Mirrors the Omni API catalog (SSOT) at
  * api-stack/services/api/src/lib/db/catalog/planConfigs.ts -> synapse:
  *   - `max_requests_per_month` (-1 = unlimited)
- *   - `overage_rate_per_1k` (cents per 1,000 requests; 0 = hard cap, no overage)
+ *   - `overageRates.requests` (cents per 1,000 requests above the allowance;
+ *     absent on free, mirrored here as 0 = hard cap, no overage)
  *
  * When entitlements are available from Aether they take precedence; this is the
  * fallback used when billing is unconfigured or unreachable, and must never be
@@ -15,22 +16,22 @@ import type { PlanTier } from "lib/config/plans.config";
 type PlanRequestLimit = {
   /** Max metered requests per calendar month (-1 = unlimited) */
   maxRequestsPerMonth: number;
-  /** Overage rate in cents per 1,000 requests (0 = hard cap, no overage) */
-  overageRatePer1k: number;
+  /** Request overage rate in cents per 1,000 requests (0 = hard cap, no overage) */
+  overageCentsPer1k: number;
 };
 
 const PLAN_REQUEST_LIMITS: Record<PlanTier, PlanRequestLimit> = {
   free: {
     maxRequestsPerMonth: 10_000,
-    overageRatePer1k: 0,
+    overageCentsPer1k: 0,
   },
   pro: {
     maxRequestsPerMonth: 100_000,
-    overageRatePer1k: 20,
+    overageCentsPer1k: 20,
   },
   team: {
     maxRequestsPerMonth: 1_000_000,
-    overageRatePer1k: 10,
+    overageCentsPer1k: 10,
   },
 };
 
@@ -46,4 +47,15 @@ const REQUEST_LIMITS_FALLBACK: Record<string, Record<string, number>> = {
   },
 };
 
-export { PLAN_REQUEST_LIMITS, REQUEST_LIMITS_FALLBACK };
+/**
+ * Aether entitlement carrying a tier's request overage rate in cents per 1,000
+ * requests: the catalog's typed `overageRates.requests`, synced by Aether as an
+ * `overage_rate_cents:<meter>` tier limit and seeded onto each account
+ */
+const REQUEST_OVERAGE_RATE_KEY = "overage_rate_cents:requests";
+
+export {
+  PLAN_REQUEST_LIMITS,
+  REQUEST_LIMITS_FALLBACK,
+  REQUEST_OVERAGE_RATE_KEY,
+};
