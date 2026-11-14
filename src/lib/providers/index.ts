@@ -11,23 +11,20 @@ import { createEventsProvider } from "@omnidotdev/providers/events";
 
 import {
   AUTHZ_API_URL,
+  AUTHZ_SERVICE_KEY,
   BILLING_BASE_URL,
+  BILLING_SERVICE_API_KEY,
   VORTEX_API_KEY,
   VORTEX_API_URL,
 } from "lib/config/env.config";
+import { authzProviderConfig, billingProviderConfig } from "./config";
 
-export const authz = AUTHZ_API_URL
-  ? createAuthzProvider({ apiUrl: AUTHZ_API_URL })
-  : null;
+const authzConfig = authzProviderConfig(AUTHZ_API_URL, AUTHZ_SERVICE_KEY);
+
+export const authz = authzConfig ? createAuthzProvider(authzConfig) : null;
 
 export const billing = createBillingProvider(
-  BILLING_BASE_URL
-    ? {
-        provider: "aether",
-        baseUrl: BILLING_BASE_URL,
-        appId: "synapse",
-      }
-    : {},
+  billingProviderConfig(BILLING_BASE_URL, BILLING_SERVICE_API_KEY),
 );
 
 export const events = createEventsProvider(
