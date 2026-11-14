@@ -13,7 +13,7 @@ import { apiKeyProviderTable, apiKeyTable, providerKeyTable, usageEventTable, us
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
 import { logAuditEvent } from "lib/logging";
-import { billing, events } from "lib/providers";
+import { authz, billing, events } from "lib/providers";
 import { isVaultEnabled, listVaultKeys, providerToUUID, removeVaultKey, setVaultKey } from "lib/vault/client";
 import { sql } from "pg-sql2";
 const rawNodeIdCodec = {
@@ -510,154 +510,6 @@ const spec_user = {
   executor: executor
 };
 const userCodec = recordCodec(spec_user);
-const usageEventIdentifier = sql.identifier("public", "usage_event");
-const spec_usageEvent = {
-  name: "usageEvent",
-  identifier: usageEventIdentifier,
-  attributes: {
-    __proto__: null,
-    id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    user_id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    workspace_id: {
-      codec: TYPES.uuid,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    api_key_id: {
-      codec: TYPES.uuid,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    provider: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    model: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    input_tokens: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    output_tokens: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    cost_cents: {
-      codec: TYPES.int,
-      notNull: true,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    mode: {
-      codec: TYPES.text,
-      notNull: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true,
-        isIndexed: false
-      }
-    },
-    created_at: {
-      codec: TYPES.timestamptz,
-      hasDefault: true,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    },
-    dedupe_key: {
-      codec: TYPES.text,
-      extensions: {
-        __proto__: null,
-        canSelect: true,
-        canInsert: true,
-        canUpdate: true
-      }
-    }
-  },
-  extensions: {
-    oid: "16426",
-    isTableLike: true,
-    pg: {
-      serviceName: "main",
-      schemaName: "public",
-      name: "usage_event"
-    }
-  },
-  executor: executor
-};
-const usageEventCodec = recordCodec(spec_usageEvent);
 const apiKeyIdentifier = sql.identifier("public", "api_key");
 const spec_apiKey = {
   name: "apiKey",
@@ -843,6 +695,166 @@ const spec_apiKey = {
   executor: executor
 };
 const apiKeyCodec = recordCodec(spec_apiKey);
+const usageEventIdentifier = sql.identifier("public", "usage_event");
+const spec_usageEvent = {
+  name: "usageEvent",
+  identifier: usageEventIdentifier,
+  attributes: {
+    __proto__: null,
+    id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    user_id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    workspace_id: {
+      codec: TYPES.uuid,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    api_key_id: {
+      codec: TYPES.uuid,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    provider: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    model: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    input_tokens: {
+      codec: TYPES.int,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    output_tokens: {
+      codec: TYPES.int,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    cost_cents: {
+      codec: TYPES.numeric,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    mode: {
+      codec: TYPES.text,
+      notNull: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    },
+    created_at: {
+      codec: TYPES.timestamptz,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    dedupe_key: {
+      codec: TYPES.text,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true
+      }
+    },
+    modality: {
+      codec: TYPES.text,
+      notNull: true,
+      hasDefault: true,
+      extensions: {
+        __proto__: null,
+        canSelect: true,
+        canInsert: true,
+        canUpdate: true,
+        isIndexed: false
+      }
+    }
+  },
+  extensions: {
+    oid: "16426",
+    isTableLike: true,
+    pg: {
+      serviceName: "main",
+      schemaName: "public",
+      name: "usage_event"
+    }
+  },
+  executor: executor
+};
+const usageEventCodec = recordCodec(spec_usageEvent);
 const api_key_providerUniques = [{
   attributes: ["api_key_id", "provider_key_id"],
   isPrimary: true
@@ -1007,9 +1019,10 @@ const registryConfig = {
     bool: TYPES.boolean,
     providerKey: providerKeyCodec,
     user: userCodec,
+    apiKey: apiKeyCodec,
     usageEvent: usageEventCodec,
     int4: TYPES.int,
-    apiKey: apiKeyCodec
+    numeric: TYPES.numeric
   },
   pgResources: {
     __proto__: null,
@@ -1671,7 +1684,7 @@ const ApiKeyOrderBy_ORGANIZATION_ID_DESCApply = queryBuilder => {
   });
 };
 const ApiKeyProviderCondition_apiKeyIdApply = ($condition, val) => applyAttributeCondition("api_key_id", TYPES.uuid, $condition, val);
-const assertOrgPermission = (observer, organizationId, action) => checkOrgPermission(null, false, observer, organizationId, action);
+const assertOrgPermission = (observer, organizationId, action) => checkOrgPermission(authz, false, observer, organizationId, action);
 const extractAccessToken = request => request.headers.get("authorization")?.split("Bearer ")[1];
 const toClientError = err => {
   if (err instanceof SpendingLimitRejectedError) return new GraphQLError(err.message, {
@@ -2821,10 +2834,11 @@ type UsageEvent implements Node {
   model: String!
   inputTokens: Int!
   outputTokens: Int!
-  costCents: Int!
+  costCents: BigFloat!
   mode: String!
   createdAt: Datetime
   dedupeKey: String
+  modality: String!
 
   """Reads a single \`ApiKey\` that is related to this \`UsageEvent\`."""
   apiKey: ApiKey
@@ -2832,6 +2846,11 @@ type UsageEvent implements Node {
   """Reads a single \`User\` that is related to this \`UsageEvent\`."""
   user: User
 }
+
+"""
+A floating point number that requires more precision than IEEE 754 binary 64
+"""
+scalar BigFloat
 
 """A \`UsageEvent\` edge in the connection."""
 type UsageEventEdge {
@@ -3828,6 +3847,13 @@ export const objects = {
                 code: "NOT_FOUND"
               }
             });
+            if (authz) {
+              if (!(await authz.checkPermission(observer.id, "organization", workspace.organizationId, "member"))) throw new GraphQLError("Insufficient permissions: requires member", {
+                extensions: {
+                  code: "FORBIDDEN"
+                }
+              });
+            }
             conditions.push(eq(usageEventTable.workspaceId, args.workspaceId));
           }
           const dateFilter = and(...conditions),
@@ -4610,7 +4636,7 @@ export const objects = {
               code: "UNAUTHENTICATED"
             }
           });
-          await checkOrgPermission(null, false, observer, args.organizationId, "admin");
+          await checkOrgPermission(authz, false, observer, args.organizationId, "admin");
           try {
             return await spendingLimits.setHardLimit(args.organizationId, args.hardLimitCents);
           } catch (err) {
@@ -4923,7 +4949,7 @@ export const objects = {
       },
       spendingLimit: {
         async resolve(observer, args) {
-          await checkOrgPermission(null, false, observer, args.organizationId, "member");
+          await checkOrgPermission(authz, false, observer, args.organizationId, "member");
           try {
             return await spendingLimits.getSpendingLimit(args.organizationId);
           } catch (err) {
@@ -5716,6 +5742,14 @@ export const inputObjects = {
   }
 };
 export const scalars = {
+  BigFloat: {
+    serialize: toString,
+    parseValue: toString,
+    parseLiteral(ast) {
+      if (ast.kind === Kind.STRING) return ast.value;
+      throw new GraphQLError(`BigFloat can only parse string values (kind='${ast.kind}')`);
+    }
+  },
   Cursor: {
     serialize: toString,
     parseValue: toString,

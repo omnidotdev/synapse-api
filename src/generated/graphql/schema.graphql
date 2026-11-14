@@ -1048,10 +1048,11 @@ type UsageEvent implements Node {
   model: String!
   inputTokens: Int!
   outputTokens: Int!
-  costCents: Int!
+  costCents: BigFloat!
   mode: String!
   createdAt: Datetime
   dedupeKey: String
+  modality: String!
 
   """Reads a single `ApiKey` that is related to this `UsageEvent`."""
   apiKey: ApiKey
@@ -1059,6 +1060,11 @@ type UsageEvent implements Node {
   """Reads a single `User` that is related to this `UsageEvent`."""
   user: User
 }
+
+"""
+A floating point number that requires more precision than IEEE 754 binary 64
+"""
+scalar BigFloat
 
 """A `UsageEvent` edge in the connection."""
 type UsageEventEdge {

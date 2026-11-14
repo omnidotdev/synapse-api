@@ -33,6 +33,7 @@ const usage = (
   costCents: number,
   createdAt: string,
   mode = "managed",
+  modality = "completion",
 ) => ({
   userId,
   apiKeyId,
@@ -42,6 +43,7 @@ const usage = (
   outputTokens: 5,
   costCents,
   mode,
+  modality,
   createdAt,
 });
 
@@ -71,7 +73,7 @@ describe("GET /internal/usage/daily", () => {
     expect((await dailyUsage("yesterday", SERVICE_KEY)).status).toBe(400);
   });
 
-  test("sums managed cost and records per product for one UTC day", async () => {
+  test("sums charged managed cost and records per product for one UTC day", async () => {
     const user = await userFactory.create(ctx.db);
     const facetKey = await apiKeyFactory.create(ctx.db, {
       userId: user.id,
@@ -91,8 +93,18 @@ describe("GET /internal/usage/daily", () => {
 
     await ctx.db.insert(usageEventTable).values([
       usage(user.id, facetKey.id, 3, "2026-11-13T00:00:00.000Z"),
+      // An unpriced request is never charged, so it is not a record either
       usage(user.id, facetKey.id, 0, "2026-11-13T12:00:00.000Z"),
-      usage(user.id, facetKey.id, 7, "2026-11-13T23:59:59.999Z"),
+      usage(user.id, facetKey.id, 7.01, "2026-11-13T23:59:59.999Z"),
+      // Every charged modality reconciles, at sub-cent precision
+      usage(
+        user.id,
+        facetKey.id,
+        0.02,
+        "2026-11-13T13:00:00.000Z",
+        "managed",
+        "embedding",
+      ),
       // A direct Synapse key bills the gateway's own app
       usage(user.id, directKey.id, 4, "2026-11-13T08:00:00.000Z"),
       // BYOK spend is the caller's, never charged by Aether
@@ -109,7 +121,7 @@ describe("GET /internal/usage/daily", () => {
     expect(body).toEqual({
       date: "2026-11-13",
       apps: [
-        { appId: "facet", costCents: 10, events: 3 },
+        { appId: "facet", costCents: 10.03, events: 3 },
         { appId: "synapse", costCents: 4, events: 1 },
       ],
     });
