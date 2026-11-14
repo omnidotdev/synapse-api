@@ -1,11 +1,10 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import {
   AUTH_BASE_URL,
   BILLING_BASE_URL,
   BILLING_SERVICE_API_KEY,
-  CORS_ALLOWED_ORIGINS,
 } from "lib/config/env.config";
 import { dbPool } from "lib/db";
 import { userTable } from "lib/db/schema";
@@ -127,73 +126,6 @@ const usageRoute = new Elysia()
     }
 
     return response.json();
-  })
-  .post(
-    "/credits/me/checkout",
-    async ({ body, headers, set }) => {
-      if (!BILLING_BASE_URL || !BILLING_SERVICE_API_KEY) {
-        set.status = 503;
-        return { error: "billing not configured" };
-      }
-
-      const user = await resolveUserFromBearer(
-        headers.authorization ?? null,
-      ).catch(() => null);
-
-      if (!user) {
-        set.status = 401;
-        return { error: "unauthorized" };
-      }
-
-      // Validate redirect URLs to prevent open redirect attacks
-      const allowedOrigins = CORS_ALLOWED_ORIGINS!
-        .split(",")
-        .map((o) => o.trim());
-      const isAllowedUrl = (url: string) => {
-        try {
-          const parsed = new URL(url);
-          return allowedOrigins.includes(parsed.origin);
-        } catch {
-          return false;
-        }
-      };
-
-      if (!isAllowedUrl(body.successUrl) || !isAllowedUrl(body.cancelUrl)) {
-        set.status = 400;
-        return { error: "invalid redirect URL" };
-      }
-
-      const response = await fetch(`${BILLING_BASE_URL}/checkout/credits`, {
-        method: "POST",
-        headers: {
-          ...aetherHeaders(),
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${headers.authorization?.split("Bearer ")[1]}`,
-        },
-        body: JSON.stringify({
-          appId: "synapse",
-          amount: body.amount,
-          successUrl: body.successUrl,
-          cancelUrl: body.cancelUrl,
-          entityType: "user",
-          entityId: user.identityProviderId,
-        }),
-      });
-
-      if (!response.ok) {
-        set.status = 502;
-        return { error: "failed to create checkout session" };
-      }
-
-      return response.json();
-    },
-    {
-      body: t.Object({
-        amount: t.Number({ minimum: 1 }),
-        successUrl: t.String(),
-        cancelUrl: t.String(),
-      }),
-    },
-  );
+  });
 
 export default usageRoute;
