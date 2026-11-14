@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "api_key_managed_scope_idx" ON "api_key" USING btree ("user_id","name",coalesce("app_id", ''),coalesce("billing_entity_type", ''),coalesce("billing_entity_id", '')) WHERE "api_key"."mode" = 'managed' AND "api_key"."revoked_at" IS NULL AND "api_key"."expires_at" IS NULL;
