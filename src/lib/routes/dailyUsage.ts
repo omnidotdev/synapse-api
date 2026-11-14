@@ -66,12 +66,15 @@ export const createDailyUsageRoute = ({
       const appId = sql<string>`coalesce(${apiKeyTable.appId}, ${sql.raw(`'${DIRECT_KEY_APP_ID}'`)})`;
 
       // Managed spend only: BYOK runs on the caller's provider key and is never
-      // charged. `manual` keys are reported as `managed` by the gateway
+      // charged. `manual` keys are reported as `managed` by the gateway. Every
+      // modality is included, as Aether charges each. A record is a served
+      // request that cost something: the gateway never charges a zero cost,
+      // so counting those would read as a missing charge
       const rows = await dbPool
         .select({
           appId,
-          costCents: sql<number>`coalesce(sum(${usageEventTable.costCents}), 0)::int`,
-          events: sql<number>`count(*)::int`,
+          costCents: sql<number>`coalesce(sum(${usageEventTable.costCents}), 0)::float8`,
+          events: sql<number>`(count(*) filter (where ${usageEventTable.costCents} > 0))::int`,
         })
         .from(usageEventTable)
         .innerJoin(apiKeyTable, eq(apiKeyTable.id, usageEventTable.apiKeyId))

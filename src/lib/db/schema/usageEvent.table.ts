@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  numeric,
   pgTable,
   text,
   uniqueIndex,
@@ -31,8 +32,16 @@ export const usageEventTable = pgTable(
     model: text().notNull(),
     inputTokens: integer().notNull().default(0),
     outputTokens: integer().notNull().default(0),
-    costCents: integer().notNull().default(0),
+    // Retail cost in cents to two places, i.e. Aether's $0.0001 ledger
+    // precision, so a sub-cent request reconciles against its charge instead
+    // of rounding to zero
+    costCents: numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     mode: text().notNull(),
+    // What was served: completion, embedding, transcription, speech,
+    // image_generation, or image_edit (the charge's Aether reference type)
+    modality: text().notNull().default("completion"),
     // Idempotency key for at-least-once gateway delivery. Set to the client
     // supplied event id when present, otherwise derived from the reported
     // batch so a retried flush does not double-insert. Nullable so historical
