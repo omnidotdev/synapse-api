@@ -37,6 +37,7 @@ import createGraphqlContext from "lib/graphql/createGraphqlContext";
 import { armorPlugin, createAuthenticationPlugin } from "lib/graphql/plugins";
 import organizationMiddleware from "lib/middleware/organization.middleware";
 import {
+  dailyUsageRoute,
   provisionKeyRoute,
   reportUsageRoute,
   resolveKeyRoute,
@@ -224,6 +225,7 @@ const app = new Elysia({
   .use(resolveProviderKeysRoute)
   .use(provisionKeyRoute)
   .use(reportUsageRoute)
+  .use(dailyUsageRoute)
   .use(usageRoute)
   .use(webhooks)
   // organization-level authZ (safe no-op for non-org routes)
