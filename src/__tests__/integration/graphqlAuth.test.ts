@@ -13,10 +13,8 @@ describe("GraphQL auth via useAuth", () => {
 
     const query = /* GraphQL */ `
       {
-        users {
-          nodes {
-            id
-          }
+        observer {
+          id
         }
       }
     `;
@@ -42,10 +40,8 @@ describe("GraphQL auth via useAuth", () => {
 
     const query = /* GraphQL */ `
       {
-        users {
-          nodes {
-            id
-          }
+        observer {
+          id
         }
       }
     `;
@@ -59,5 +55,30 @@ describe("GraphQL auth via useAuth", () => {
     const json = await res.json();
 
     expect(json.errors).toBeUndefined();
+  });
+
+  test("generated table reads are not in the schema", async () => {
+    const yoga = makeYogaServer({
+      headers: { authorization: `Bearer ${TEST_TOKEN}` },
+    });
+
+    // These were readable by any signed-in caller across all users before
+    for (const field of [
+      "users { totalCount }",
+      "usageEvents { totalCount }",
+      "userPreferences { totalCount }",
+      'apiKeyByKeyHash(keyHash: "x") { id }',
+      'node(id: "x") { id }',
+    ]) {
+      const res = await yoga.fetch("http://test/graphql", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: `{ ${field} }` }),
+      });
+      const json = await res.json();
+
+      expect(json.data).toBeUndefined();
+      expect(json.errors?.[0]?.message).toContain("Cannot query field");
+    }
   });
 });
