@@ -13,7 +13,7 @@ import { apiKeyProviderTable, apiKeyTable, providerKeyTable, usageEventTable, us
 import { publish } from "lib/events/publisher";
 import { validateOrgMembership } from "lib/idp";
 import { logAuditEvent } from "lib/logging";
-import { authz, billing, events } from "lib/providers";
+import { billing, events } from "lib/providers";
 import { isVaultEnabled, listVaultKeys, providerToUUID, removeVaultKey, setVaultKey } from "lib/vault/client";
 import { sql } from "pg-sql2";
 const rawNodeIdCodec = {
@@ -113,7 +113,7 @@ const spec_apiKeyProvider = {
     }
   },
   extensions: {
-    oid: "16410",
+    oid: "19295",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -125,7 +125,7 @@ const spec_apiKeyProvider = {
 };
 const apiKeyProviderCodec = recordCodec(spec_apiKeyProvider);
 const workspaceIdentifier = sql.identifier("public", "workspace");
-const spec_workspace = {
+const workspaceCodec = recordCodec({
   name: "workspace",
   identifier: workspaceIdentifier,
   attributes: {
@@ -206,7 +206,7 @@ const spec_workspace = {
     }
   },
   extensions: {
-    oid: "16464",
+    oid: "19349",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -215,8 +215,7 @@ const spec_workspace = {
     }
   },
   executor: executor
-};
-const workspaceCodec = recordCodec(spec_workspace);
+});
 const userPreferenceIdentifier = sql.identifier("public", "user_preference");
 const spec_userPreference = {
   name: "userPreference",
@@ -291,7 +290,7 @@ const spec_userPreference = {
     }
   },
   extensions: {
-    oid: "16451",
+    oid: "19336",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -343,7 +342,9 @@ const spec_providerKey = {
       codec: TYPES.text,
       notNull: true,
       extensions: {
-        __proto__: null,
+        tags: {
+          behavior: "-*"
+        },
         canSelect: true,
         canInsert: true,
         canUpdate: true,
@@ -395,7 +396,7 @@ const spec_providerKey = {
     }
   },
   extensions: {
-    oid: "16416",
+    oid: "19301",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -499,7 +500,7 @@ const spec_user = {
     }
   },
   extensions: {
-    oid: "16438",
+    oid: "19323",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -551,7 +552,9 @@ const spec_apiKey = {
       codec: TYPES.text,
       notNull: true,
       extensions: {
-        __proto__: null,
+        tags: {
+          behavior: "-*"
+        },
         canSelect: true,
         canInsert: true,
         canUpdate: true
@@ -684,7 +687,7 @@ const spec_apiKey = {
     }
   },
   extensions: {
-    oid: "16397",
+    oid: "19282",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -844,7 +847,7 @@ const spec_usageEvent = {
     }
   },
   extensions: {
-    oid: "16426",
+    oid: "19311",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -1269,6 +1272,29 @@ function findTypeNameMatch(specifier) {
   console.warn(`Could not find a type that matched the specifier '${inspect(specifier)}'`);
   return null;
 }
+function toString(value) {
+  return "" + value;
+}
+const coerce = string => {
+  if (!/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(string)) throw new GraphQLError("Invalid UUID, expected 32 hexadecimal characters, optionally with hyphens");
+  return string;
+};
+const assertOrgPermission = (observer, organizationId, action) => checkOrgPermission(null, false, observer, organizationId, action);
+const extractAccessToken = request => request.headers.get("authorization")?.split("Bearer ")[1];
+const toClientError = err => {
+  if (err instanceof SpendingLimitRejectedError) return new GraphQLError(err.message, {
+    extensions: {
+      code: "BAD_USER_INPUT"
+    }
+  });
+  console.error(`[spending-limit] ${err instanceof Error ? err.message : "unknown error"}`);
+  return new GraphQLError("Spending limits are unavailable right now. Try again shortly", {
+    extensions: {
+      code: "SERVICE_UNAVAILABLE"
+    }
+  });
+};
+const EMPTY_OBJECT2 = Object.freeze({});
 const nodeIdCodecs = {
   __proto__: null,
   raw: rawNodeIdCodec,
@@ -1283,6 +1309,47 @@ const nodeIdCodecs = {
     })
   }
 };
+const DEFAULT_RETENTION_DAYS = {
+  free: 7,
+  pro: 90,
+  team: 365
+};
+const resolveRetentionDays = (entitlements, tier) => {
+  const entry = entitlements?.entitlements?.find(e => e.featureKey === "analytics_retention_days");
+  if (entry?.value != null) {
+    const val = Number(String(entry.value).replace(/"/g, ""));
+    if (Number.isFinite(val)) return val === -1 ? 366 : val;
+  }
+  return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
+};
+const assertOrgMembership = async (observerIdpId, organizationId) => {
+  if (!(await validateOrgMembership(observerIdpId, organizationId))) throw new GraphQLError("Not a member of this workspace", {
+    extensions: {
+      code: "FORBIDDEN"
+    }
+  });
+};
+const DEFAULT_LIMITS = {
+  max_api_keys: {
+    free: 3,
+    pro: 25,
+    team: -1
+  }
+};
+const DEFAULT_LIMITS2 = {
+  max_provider_keys: {
+    free: 6,
+    pro: 10,
+    team: -1
+  }
+};
+const DEFAULT_LIMITS3 = {
+  max_workspaces: {
+    free: 1,
+    pro: 10,
+    team: -1
+  }
+};
 const ApiKeyProvider_apiKeyIdPlan = $record => {
   return $record.get("api_key_id");
 };
@@ -1292,13 +1359,6 @@ const ApiKeyProvider_createdAtPlan = $record => {
 const ApiKeyProvider_apiKeyPlan = $record => spec_resource_api_keyPgResource.get({
   id: $record.get("api_key_id")
 });
-function toString(value) {
-  return "" + value;
-}
-const coerce = string => {
-  if (!/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(string)) throw new GraphQLError("Invalid UUID, expected 32 hexadecimal characters, optionally with hyphens");
-  return string;
-};
 const ApiKey_rowIdPlan = $record => {
   return $record.get("id");
 };
@@ -1379,9 +1439,7 @@ function applyAttributeCondition(attributeName, attributeCodec, $condition, val)
     }
   });
 }
-const ApiKeyCondition_rowIdApply = ($condition, val) => applyAttributeCondition("id", TYPES.uuid, $condition, val);
-const ApiKeyCondition_userIdApply = ($condition, val) => applyAttributeCondition("user_id", TYPES.uuid, $condition, val);
-const ApiKeyCondition_organizationIdApply = ($condition, val) => applyAttributeCondition("organization_id", TYPES.uuid, $condition, val);
+const ApiKeyProviderCondition_apiKeyIdApply = ($condition, val) => applyAttributeCondition("api_key_id", TYPES.uuid, $condition, val);
 const pgConnectionFilterApplyAttribute = (fieldName, attributeName, attribute, queryBuilder, value) => {
   if (value === void 0) return;
   if (!false && isEmpty(value)) throw Object.assign(Error("Empty objects are forbidden in filter argument input."), {});
@@ -1408,18 +1466,18 @@ const pgConnectionFilterApplySingleRelation = (foreignTable, foreignTableExpress
   $subQuery.ignoreUnlessAmended();
   return $subQuery;
 };
-function ApiKeyFilter_andApply($where, value) {
+function ApiKeyProviderFilter_andApply($where, value) {
   assertAllowed(value, "list");
   if (value == null) return;
   return $where.andPlan();
 }
-function ApiKeyFilter_orApply($where, value) {
+function ApiKeyProviderFilter_orApply($where, value) {
   assertAllowed(value, "list");
   if (value == null) return;
   const $or = $where.orPlan();
   return () => $or.andPlan();
 }
-function ApiKeyFilter_notApply($where, value) {
+function ApiKeyProviderFilter_notApply($where, value) {
   assertAllowed(value, "object");
   if (value == null) return;
   return $where.notPlan().andPlan();
@@ -1530,59 +1588,6 @@ const resolveGreaterThanOrEqualTo = (i, v) => sql`${i} >= ${v}`;
 function pgAggregatesApply_greaterThanOrEqualTo($where, value) {
   return pgConnectionFilterApplyFromOperator("greaterThanOrEqualTo", resolveGreaterThanOrEqualTo, undefined, resolveInputCodecSensitive, resolveSqlIdentifierSensitive, undefined, $where, value);
 }
-const resolveLike = (i, v) => sql`${i} LIKE ${v}`;
-function escapeLikeWildcards(input) {
-  if (typeof input !== "string") throw Error("Non-string input was provided to escapeLikeWildcards");else return input.split("%").join("\\%").split("_").join("\\_");
-}
-const resolveInputContains = input => `%${escapeLikeWildcards(input)}%`;
-const resolveNotLike = (i, v) => sql`${i} NOT LIKE ${v}`;
-const resolveILike = (i, v) => sql`${i} ILIKE ${v}`;
-const forceTextTypesInsensitive = [TYPES.char, TYPES.bpchar];
-function resolveInputCodecInsensitive(c) {
-  if (c.arrayOfCodec) {
-    if (forceTextTypesInsensitive.includes(resolveDomains(c.arrayOfCodec))) return listOfCodec(TYPES.text, {
-      extensions: {
-        listItemNonNull: c.extensions?.listItemNonNull
-      }
-    });
-    return c;
-  } else {
-    if (forceTextTypesInsensitive.includes(resolveDomains(c))) return TYPES.text;
-    return c;
-  }
-}
-function resolveSqlIdentifierInsensitive(identifier, c) {
-  if (c.arrayOfCodec && forceTextTypesInsensitive.includes(resolveDomains(c.arrayOfCodec))) return [sql`(${identifier})::text[]`, listOfCodec(TYPES.text, {
-    extensions: {
-      listItemNonNull: c.extensions?.listItemNonNull
-    }
-  })];else if (forceTextTypesInsensitive.includes(resolveDomains(c))) return [sql`(${identifier})::text`, TYPES.text];else return [identifier, c];
-}
-const resolveNotILike = (i, v) => sql`${i} NOT ILIKE ${v}`;
-const resolveInputStartsWith = input => `${escapeLikeWildcards(input)}%`;
-const resolveInputEndsWith = input => `%${escapeLikeWildcards(input)}`;
-function resolveInputCodecInsensitiveOperator(inputCodec) {
-  return resolveDomains(inputCodec) === TYPES.citext ? inputCodec : TYPES.text;
-}
-function resolveSqlIdentifierInsensitiveOperator(sourceAlias, codec) {
-  return resolveDomains(codec) === TYPES.citext ? [sourceAlias, codec] : [sql`lower(${sourceAlias}::text)`, TYPES.text];
-}
-function resolveSqlValueInsensitiveOperator(_unused, input, inputCodec) {
-  const sqlValue = sqlValueWithCodec(input, inputCodec);
-  if (inputCodec === TYPES.citext) return sqlValue;else return sql`lower(${sqlValue})`;
-}
-function resolveInputCodecInsensitiveOperator_list(inputCodec) {
-  const t = resolveDomains(inputCodec) === TYPES.citext ? inputCodec : TYPES.text;
-  return listOfCodec(t, {
-    extensions: {
-      listItemNonNull: !0
-    }
-  });
-}
-function resolveSqlValueInsensitiveOperator_list(_unused, input, inputCodec) {
-  const sqlList = sqlValueWithCodec(input, inputCodec);
-  if (inputCodec.arrayOfCodec === TYPES.citext) return sqlList;else return sql`(select lower(t) from unnest(${sqlList}) t)`;
-}
 function ApiKeyToManyApiKeyProviderFilter_everyApply($where, value) {
   assertAllowed(value, "object");
   if (value == null) return;
@@ -1645,144 +1650,86 @@ function ApiKeyToManyApiKeyProviderFilter_noneApply($where, value) {
   $subQuery.ignoreUnlessAmended();
   return $subQuery;
 }
-const ApiKeyOrderBy_ROW_ID_ASCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "id",
-    direction: "ASC"
-  });
-  queryBuilder.setOrderIsUnique();
-};
-const ApiKeyOrderBy_ROW_ID_DESCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "id",
-    direction: "DESC"
-  });
-  queryBuilder.setOrderIsUnique();
-};
-const ApiKeyOrderBy_USER_ID_ASCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "user_id",
-    direction: "ASC"
-  });
-};
-const ApiKeyOrderBy_USER_ID_DESCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "user_id",
-    direction: "DESC"
-  });
-};
-const ApiKeyOrderBy_ORGANIZATION_ID_ASCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "organization_id",
-    direction: "ASC"
-  });
-};
-const ApiKeyOrderBy_ORGANIZATION_ID_DESCApply = queryBuilder => {
-  queryBuilder.orderBy({
-    attribute: "organization_id",
-    direction: "DESC"
-  });
-};
-const ApiKeyProviderCondition_apiKeyIdApply = ($condition, val) => applyAttributeCondition("api_key_id", TYPES.uuid, $condition, val);
-const assertOrgPermission = (observer, organizationId, action) => checkOrgPermission(authz, false, observer, organizationId, action);
-const extractAccessToken = request => request.headers.get("authorization")?.split("Bearer ")[1];
-const toClientError = err => {
-  if (err instanceof SpendingLimitRejectedError) return new GraphQLError(err.message, {
-    extensions: {
-      code: "BAD_USER_INPUT"
-    }
-  });
-  console.error(`[spending-limit] ${err instanceof Error ? err.message : "unknown error"}`);
-  return new GraphQLError("Spending limits are unavailable right now. Try again shortly", {
-    extensions: {
-      code: "SERVICE_UNAVAILABLE"
-    }
-  });
-};
-const EMPTY_OBJECT2 = Object.freeze({});
-const specForHandlerCache = new Map();
-function specForHandler(handler) {
-  const existing = specForHandlerCache.get(handler);
-  if (existing) return existing;
-  const spec = markSyncAndSafe(function spec(nodeId) {
-    if (nodeId == null) return null;
-    try {
-      const specifier = handler.codec.decode(nodeId);
-      if (handler.match(specifier)) return specifier;
-    } catch {}
-    return null;
-  }, `specifier_${handler.typeName}_${handler.codec.name}`);
-  specForHandlerCache.set(handler, spec);
-  return spec;
+const resolveLike = (i, v) => sql`${i} LIKE ${v}`;
+function escapeLikeWildcards(input) {
+  if (typeof input !== "string") throw Error("Non-string input was provided to escapeLikeWildcards");else return input.split("%").join("\\%").split("_").join("\\_");
 }
-const nodeFetcher_ApiKeyProvider = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_ApiKeyProvider));
-  return nodeIdHandler_ApiKeyProvider.get(nodeIdHandler_ApiKeyProvider.getSpec($decoded));
-};
-const nodeFetcher_Workspace = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_Workspace));
-  return nodeIdHandler_Workspace.get(nodeIdHandler_Workspace.getSpec($decoded));
-};
-const nodeFetcher_UserPreference = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_UserPreference));
-  return nodeIdHandler_UserPreference.get(nodeIdHandler_UserPreference.getSpec($decoded));
-};
-const nodeFetcher_ProviderKey = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_ProviderKey));
-  return nodeIdHandler_ProviderKey.get(nodeIdHandler_ProviderKey.getSpec($decoded));
-};
-const nodeFetcher_User = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_User));
-  return nodeIdHandler_User.get(nodeIdHandler_User.getSpec($decoded));
-};
-const nodeFetcher_UsageEvent = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_UsageEvent));
-  return nodeIdHandler_UsageEvent.get(nodeIdHandler_UsageEvent.getSpec($decoded));
-};
-const nodeFetcher_ApiKey = $nodeId => {
-  const $decoded = lambda($nodeId, specForHandler(nodeIdHandler_ApiKey));
-  return nodeIdHandler_ApiKey.get(nodeIdHandler_ApiKey.getSpec($decoded));
-};
-const DEFAULT_RETENTION_DAYS = {
-  free: 7,
-  pro: 90,
-  team: 365
-};
-const resolveRetentionDays = (entitlements, tier) => {
-  const entry = entitlements?.entitlements?.find(e => e.featureKey === "analytics_retention_days");
-  if (entry?.value != null) {
-    const val = Number(String(entry.value).replace(/"/g, ""));
-    if (Number.isFinite(val)) return val === -1 ? 366 : val;
+const resolveInputContains = input => `%${escapeLikeWildcards(input)}%`;
+const resolveNotLike = (i, v) => sql`${i} NOT LIKE ${v}`;
+const resolveILike = (i, v) => sql`${i} ILIKE ${v}`;
+const forceTextTypesInsensitive = [TYPES.char, TYPES.bpchar];
+function resolveInputCodecInsensitive(c) {
+  if (c.arrayOfCodec) {
+    if (forceTextTypesInsensitive.includes(resolveDomains(c.arrayOfCodec))) return listOfCodec(TYPES.text, {
+      extensions: {
+        listItemNonNull: c.extensions?.listItemNonNull
+      }
+    });
+    return c;
+  } else {
+    if (forceTextTypesInsensitive.includes(resolveDomains(c))) return TYPES.text;
+    return c;
   }
-  return DEFAULT_RETENTION_DAYS[tier] ?? DEFAULT_RETENTION_DAYS.free;
-};
-const assertOrgMembership = async (observerIdpId, organizationId) => {
-  if (!(await validateOrgMembership(observerIdpId, organizationId))) throw new GraphQLError("Not a member of this workspace", {
+}
+function resolveSqlIdentifierInsensitive(identifier, c) {
+  if (c.arrayOfCodec && forceTextTypesInsensitive.includes(resolveDomains(c.arrayOfCodec))) return [sql`(${identifier})::text[]`, listOfCodec(TYPES.text, {
     extensions: {
-      code: "FORBIDDEN"
+      listItemNonNull: c.extensions?.listItemNonNull
+    }
+  })];else if (forceTextTypesInsensitive.includes(resolveDomains(c))) return [sql`(${identifier})::text`, TYPES.text];else return [identifier, c];
+}
+const resolveNotILike = (i, v) => sql`${i} NOT ILIKE ${v}`;
+const resolveInputStartsWith = input => `${escapeLikeWildcards(input)}%`;
+const resolveInputEndsWith = input => `%${escapeLikeWildcards(input)}`;
+function resolveInputCodecInsensitiveOperator(inputCodec) {
+  return resolveDomains(inputCodec) === TYPES.citext ? inputCodec : TYPES.text;
+}
+function resolveSqlIdentifierInsensitiveOperator(sourceAlias, codec) {
+  return resolveDomains(codec) === TYPES.citext ? [sourceAlias, codec] : [sql`lower(${sourceAlias}::text)`, TYPES.text];
+}
+function resolveSqlValueInsensitiveOperator(_unused, input, inputCodec) {
+  const sqlValue = sqlValueWithCodec(input, inputCodec);
+  if (inputCodec === TYPES.citext) return sqlValue;else return sql`lower(${sqlValue})`;
+}
+function resolveInputCodecInsensitiveOperator_list(inputCodec) {
+  const t = resolveDomains(inputCodec) === TYPES.citext ? inputCodec : TYPES.text;
+  return listOfCodec(t, {
+    extensions: {
+      listItemNonNull: !0
     }
   });
+}
+function resolveSqlValueInsensitiveOperator_list(_unused, input, inputCodec) {
+  const sqlList = sqlValueWithCodec(input, inputCodec);
+  if (inputCodec.arrayOfCodec === TYPES.citext) return sqlList;else return sql`(select lower(t) from unnest(${sqlList}) t)`;
+}
+const UsageEventCondition_rowIdApply = ($condition, val) => applyAttributeCondition("id", TYPES.uuid, $condition, val);
+const UsageEventCondition_userIdApply = ($condition, val) => applyAttributeCondition("user_id", TYPES.uuid, $condition, val);
+const UsageEventOrderBy_ROW_ID_ASCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "id",
+    direction: "ASC"
+  });
+  queryBuilder.setOrderIsUnique();
 };
-const DEFAULT_LIMITS = {
-  max_api_keys: {
-    free: 3,
-    pro: 25,
-    team: -1
-  }
+const UsageEventOrderBy_ROW_ID_DESCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "id",
+    direction: "DESC"
+  });
+  queryBuilder.setOrderIsUnique();
 };
-const DEFAULT_LIMITS2 = {
-  max_provider_keys: {
-    free: 6,
-    pro: 10,
-    team: -1
-  }
+const UsageEventOrderBy_USER_ID_ASCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "user_id",
+    direction: "ASC"
+  });
 };
-const DEFAULT_LIMITS3 = {
-  max_workspaces: {
-    free: 1,
-    pro: 10,
-    team: -1
-  }
+const UsageEventOrderBy_USER_ID_DESCApply = queryBuilder => {
+  queryBuilder.orderBy({
+    attribute: "user_id",
+    direction: "DESC"
+  });
 };
 export const typeDefs = /* GraphQL */`"""An object with a globally unique \`ID\`."""
 interface Node {
@@ -1790,6 +1737,255 @@ interface Node {
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
   """
   id: ID!
+}
+
+"""
+A universally unique identifier as defined by [RFC 4122](https://tools.ietf.org/html/rfc4122).
+"""
+scalar UUID
+
+type Observer {
+  id: UUID!
+  name: String!
+  email: String!
+
+  """
+  List active API keys. With \`organizationId\`, every key that belongs to
+  that workspace (members only); otherwise the current user's own keys,
+  optionally filtered by Synapse workspace resource.
+  """
+  apiKeys(organizationId: UUID, workspaceId: UUID): [ApiKeyInfo!]!
+
+  """Fetch current user's preferences."""
+  preferences: UserPreferences
+
+  """List provider keys for the current user."""
+  providerKeys: [ProviderKeyInfo!]!
+
+  """A workspace's Synapse spending limit (workspace members only)."""
+  spendingLimit(organizationId: UUID!): SpendingLimit
+}
+
+input GenerateApiKeyInput {
+  name: String!
+  mode: String!
+
+  """
+  Workspace (organization) the key belongs to and bills. Required unless
+  \`workspaceId\` names a Synapse workspace resource, whose organization
+  the key then inherits
+  """
+  organizationId: UUID
+  workspaceId: UUID
+}
+
+type GenerateApiKeyPayload {
+  rawKey: String!
+  apiKeyId: UUID!
+  keyHint: String!
+}
+
+type LinkedProviderInfo {
+  id: UUID!
+  provider: String!
+  keyHint: String!
+}
+
+type ApiKeyInfo {
+  id: UUID!
+  name: String!
+  keyHint: String!
+  mode: String!
+  createdAt: Datetime!
+  lastUsedAt: Datetime
+  expiresAt: Datetime
+  revokedAt: Datetime
+  linkedProviders: [LinkedProviderInfo!]!
+}
+
+"""
+A point in time as described by the [ISO
+8601](https://en.wikipedia.org/wiki/ISO_8601) and, if it has a timezone, [RFC
+3339](https://datatracker.ietf.org/doc/html/rfc3339) standards. Input values
+that do not conform to both ISO 8601 and RFC 3339 may be coerced, which may lead
+to unexpected results.
+"""
+scalar Datetime
+
+input UpdateUserPreferencesInput {
+  defaultProvider: String
+  notifyUsageThreshold: Boolean
+  notifyKeyExpiry: Boolean
+}
+
+type UserPreferences {
+  defaultProvider: String
+  notifyUsageThreshold: Boolean!
+  notifyKeyExpiry: Boolean!
+}
+
+input SetProviderKeyInput {
+  provider: String!
+  key: String!
+}
+
+type ProviderKeyInfo {
+  id: UUID!
+  userId: UUID!
+  provider: String!
+  keyHint: String!
+  createdAt: Datetime
+  updatedAt: Datetime
+  modelPreference: String
+}
+
+type SpendingLimit {
+  organizationId: UUID!
+
+  """Hard monthly cap on request overage, in cents (null when unset)"""
+  hardLimitCents: Int
+
+  """Overage owed this period, in cents, as last settled"""
+  currentSpendCents: Int!
+
+  """Whether requests past the included allowance are paused at the limit"""
+  suspended: Boolean!
+}
+
+type ModelBreakdown {
+  model: String!
+  provider: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  requests: Int!
+}
+
+type DailyUsage {
+  date: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  requests: Int!
+}
+
+type UsageBreakdown {
+  byModel: [ModelBreakdown!]!
+  byDay: [DailyUsage!]!
+}
+
+"""The root query type which gives access points into the data universe."""
+type Query implements Node {
+  """
+  Exposes the root query type nested one level down. This is helpful for Relay 1
+  which can only query top level fields if they are in a particular form.
+  """
+  query: Query!
+
+  """
+  The root query type must be a \`Node\` to work well with Relay 1 mutations. This just resolves to \`query\`.
+  """
+  id: ID!
+
+  """The currently authenticated user. Returns null if not authenticated."""
+  observer: Observer
+
+  """
+  Aggregated usage breakdown by model and day for charts.
+  Optionally filter by workspaceId for workspace-scoped usage.
+  """
+  usageBreakdown(startDate: String!, endDate: String!, workspaceId: String): UsageBreakdown
+
+  """List workspaces for an organization"""
+  orgWorkspaces(organizationId: UUID!): [WorkspaceResult!]!
+}
+
+"""
+The root mutation type which contains root level fields which mutate data.
+"""
+type Mutation {
+  """Generate a new API key. The raw key is returned once and never stored."""
+  generateApiKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: GenerateApiKeyInput!
+  ): GenerateApiKeyPayload
+
+  """Revoke an API key by setting its revokedAt timestamp."""
+  revokeApiKey(id: UUID!): Boolean
+
+  """Link a provider key to an API key so requests use that provider."""
+  linkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
+
+  """Unlink a provider key from an API key."""
+  unlinkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
+
+  """Update user preferences. Creates preferences row if it doesn't exist."""
+  updateUserPreferences(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: UpdateUserPreferencesInput!
+  ): UserPreferences
+
+  """Encrypt and upsert a BYOK provider key."""
+  setProviderKey(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: SetProviderKeyInput!
+  ): ProviderKeyInfo
+
+  """Delete a provider key. Verifies ownership before deletion."""
+  removeProviderKey(id: UUID!): Boolean
+
+  """
+  Set a workspace's hard spending limit in cents (workspace admins only).
+  Raising it above the overage already owed resumes paused requests.
+  """
+  setSpendingLimit(organizationId: UUID!, hardLimitCents: Int!): SpendingLimit!
+
+  """Create a new workspace within an organization"""
+  addWorkspace(
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: NewWorkspaceInput!
+  ): WorkspaceResult
+
+  """Update a workspace's details"""
+  patchWorkspace(
+    id: UUID!
+
+    """
+    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
+    """
+    input: PatchWorkspaceInput!
+  ): WorkspaceResult
+
+  """Delete a workspace"""
+  removeWorkspace(id: UUID!): Boolean
+}
+
+input NewWorkspaceInput {
+  organizationId: UUID!
+  name: String!
+  slug: String!
+  description: String
+}
+
+input PatchWorkspaceInput {
+  name: String
+  slug: String
+  description: String
+}
+
+type WorkspaceResult {
+  id: UUID!
+  organizationId: UUID!
+  name: String!
+  slug: String!
+  description: String
+  createdAt: Datetime!
 }
 
 type ApiKeyProvider implements Node {
@@ -1808,20 +2004,6 @@ type ApiKeyProvider implements Node {
   providerKey: ProviderKey
 }
 
-"""
-A universally unique identifier as defined by [RFC 4122](https://tools.ietf.org/html/rfc4122).
-"""
-scalar UUID
-
-"""
-A point in time as described by the [ISO
-8601](https://en.wikipedia.org/wiki/ISO_8601) and, if it has a timezone, [RFC
-3339](https://datatracker.ietf.org/doc/html/rfc3339) standards. Input values
-that do not conform to both ISO 8601 and RFC 3339 may be coerced, which may lead
-to unexpected results.
-"""
-scalar Datetime
-
 type ApiKey implements Node {
   """
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
@@ -1830,7 +2012,6 @@ type ApiKey implements Node {
   rowId: UUID!
   userId: UUID!
   workspaceId: UUID
-  keyHash: String!
   keyHint: String!
   name: String!
   mode: String!
@@ -1914,6 +2095,671 @@ type ApiKey implements Node {
     """The method to use when ordering \`UsageEvent\`."""
     orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
   ): UsageEventConnection!
+}
+
+"""A connection to a list of \`ApiKeyProvider\` values."""
+type ApiKeyProviderConnection {
+  """A list of \`ApiKeyProvider\` objects."""
+  nodes: [ApiKeyProvider]!
+
+  """
+  A list of edges which contains the \`ApiKeyProvider\` and cursor to aid in pagination.
+  """
+  edges: [ApiKeyProviderEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* \`ApiKeyProvider\` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A \`ApiKeyProvider\` edge in the connection."""
+type ApiKeyProviderEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The \`ApiKeyProvider\` at the end of the edge."""
+  node: ApiKeyProvider
+}
+
+"""A location in a connection that can be used for resuming pagination."""
+scalar Cursor
+
+"""Information about pagination in a connection."""
+type PageInfo {
+  """When paginating forwards, are there more items?"""
+  hasNextPage: Boolean!
+
+  """When paginating backwards, are there more items?"""
+  hasPreviousPage: Boolean!
+
+  """When paginating backwards, the cursor to continue."""
+  startCursor: Cursor
+
+  """When paginating forwards, the cursor to continue."""
+  endCursor: Cursor
+}
+
+"""
+A condition to be used against \`ApiKeyProvider\` object types. All fields are
+tested for equality and combined with a logical ‘and.’
+"""
+input ApiKeyProviderCondition {
+  """Checks for equality with the object’s \`apiKeyId\` field."""
+  apiKeyId: UUID
+
+  """Checks for equality with the object’s \`providerKeyId\` field."""
+  providerKeyId: UUID
+}
+
+"""
+A filter to be used against \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyProviderFilter {
+  """Filter by the object’s \`apiKeyId\` field."""
+  apiKeyId: UUIDFilter
+
+  """Filter by the object’s \`providerKeyId\` field."""
+  providerKeyId: UUIDFilter
+
+  """Filter by the object’s \`apiKey\` relation."""
+  apiKey: ApiKeyFilter
+
+  """Filter by the object’s \`providerKey\` relation."""
+  providerKey: ProviderKeyFilter
+
+  """Checks for all expressions in this list."""
+  and: [ApiKeyProviderFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ApiKeyProviderFilter!]
+
+  """Negates the expression."""
+  not: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against UUID fields. All fields are combined with a logical ‘and.’
+"""
+input UUIDFilter {
+  """
+  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: UUID
+
+  """Not equal to the specified value."""
+  notEqualTo: UUID
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: UUID
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: UUID
+
+  """Included in the specified list."""
+  in: [UUID!]
+
+  """Not included in the specified list."""
+  notIn: [UUID!]
+
+  """Less than the specified value."""
+  lessThan: UUID
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: UUID
+
+  """Greater than the specified value."""
+  greaterThan: UUID
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: UUID
+}
+
+"""
+A filter to be used against \`ApiKey\` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyFilter {
+  """Filter by the object’s \`rowId\` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s \`userId\` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s \`organizationId\` field."""
+  organizationId: UUIDFilter
+
+  """Filter by the object’s \`apiKeyProviders\` relation."""
+  apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
+
+  """Some related \`apiKeyProviders\` exist."""
+  apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s \`usageEvents\` relation."""
+  usageEvents: ApiKeyToManyUsageEventFilter
+
+  """Some related \`usageEvents\` exist."""
+  usageEventsExist: Boolean
+
+  """Filter by the object’s \`user\` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [ApiKeyFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ApiKeyFilter!]
+
+  """Negates the expression."""
+  not: ApiKeyFilter
+}
+
+"""
+A filter to be used against many \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyToManyApiKeyProviderFilter {
+  """
+  Every related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against many \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
+"""
+input ApiKeyToManyUsageEventFilter {
+  """
+  Every related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: UsageEventFilter
+
+  """
+  Some related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: UsageEventFilter
+
+  """
+  No related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: UsageEventFilter
+}
+
+"""
+A filter to be used against \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
+"""
+input UsageEventFilter {
+  """Filter by the object’s \`rowId\` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s \`userId\` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s \`apiKeyId\` field."""
+  apiKeyId: UUIDFilter
+
+  """Filter by the object’s \`createdAt\` field."""
+  createdAt: DatetimeFilter
+
+  """Filter by the object’s \`dedupeKey\` field."""
+  dedupeKey: StringFilter
+
+  """Filter by the object’s \`apiKey\` relation."""
+  apiKey: ApiKeyFilter
+
+  """Filter by the object’s \`user\` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [UsageEventFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UsageEventFilter!]
+
+  """Negates the expression."""
+  not: UsageEventFilter
+}
+
+"""
+A filter to be used against Datetime fields. All fields are combined with a logical ‘and.’
+"""
+input DatetimeFilter {
+  """
+  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: Datetime
+
+  """Not equal to the specified value."""
+  notEqualTo: Datetime
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: Datetime
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: Datetime
+
+  """Included in the specified list."""
+  in: [Datetime!]
+
+  """Not included in the specified list."""
+  notIn: [Datetime!]
+
+  """Less than the specified value."""
+  lessThan: Datetime
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: Datetime
+
+  """Greater than the specified value."""
+  greaterThan: Datetime
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: Datetime
+}
+
+"""
+A filter to be used against String fields. All fields are combined with a logical ‘and.’
+"""
+input StringFilter {
+  """
+  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
+  """
+  isNull: Boolean
+
+  """Equal to the specified value."""
+  equalTo: String
+
+  """Not equal to the specified value."""
+  notEqualTo: String
+
+  """
+  Not equal to the specified value, treating null like an ordinary value.
+  """
+  distinctFrom: String
+
+  """Equal to the specified value, treating null like an ordinary value."""
+  notDistinctFrom: String
+
+  """Included in the specified list."""
+  in: [String!]
+
+  """Not included in the specified list."""
+  notIn: [String!]
+
+  """Less than the specified value."""
+  lessThan: String
+
+  """Less than or equal to the specified value."""
+  lessThanOrEqualTo: String
+
+  """Greater than the specified value."""
+  greaterThan: String
+
+  """Greater than or equal to the specified value."""
+  greaterThanOrEqualTo: String
+
+  """Contains the specified string (case-sensitive)."""
+  includes: String
+
+  """Does not contain the specified string (case-sensitive)."""
+  notIncludes: String
+
+  """Contains the specified string (case-insensitive)."""
+  includesInsensitive: String
+
+  """Does not contain the specified string (case-insensitive)."""
+  notIncludesInsensitive: String
+
+  """Starts with the specified string (case-sensitive)."""
+  startsWith: String
+
+  """Does not start with the specified string (case-sensitive)."""
+  notStartsWith: String
+
+  """Starts with the specified string (case-insensitive)."""
+  startsWithInsensitive: String
+
+  """Does not start with the specified string (case-insensitive)."""
+  notStartsWithInsensitive: String
+
+  """Ends with the specified string (case-sensitive)."""
+  endsWith: String
+
+  """Does not end with the specified string (case-sensitive)."""
+  notEndsWith: String
+
+  """Ends with the specified string (case-insensitive)."""
+  endsWithInsensitive: String
+
+  """Does not end with the specified string (case-insensitive)."""
+  notEndsWithInsensitive: String
+
+  """
+  Matches the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  like: String
+
+  """
+  Does not match the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  notLike: String
+
+  """
+  Matches the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  likeInsensitive: String
+
+  """
+  Does not match the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
+  """
+  notLikeInsensitive: String
+
+  """Equal to the specified value (case-insensitive)."""
+  equalToInsensitive: String
+
+  """Not equal to the specified value (case-insensitive)."""
+  notEqualToInsensitive: String
+
+  """
+  Not equal to the specified value, treating null like an ordinary value (case-insensitive).
+  """
+  distinctFromInsensitive: String
+
+  """
+  Equal to the specified value, treating null like an ordinary value (case-insensitive).
+  """
+  notDistinctFromInsensitive: String
+
+  """Included in the specified list (case-insensitive)."""
+  inInsensitive: [String!]
+
+  """Not included in the specified list (case-insensitive)."""
+  notInInsensitive: [String!]
+
+  """Less than the specified value (case-insensitive)."""
+  lessThanInsensitive: String
+
+  """Less than or equal to the specified value (case-insensitive)."""
+  lessThanOrEqualToInsensitive: String
+
+  """Greater than the specified value (case-insensitive)."""
+  greaterThanInsensitive: String
+
+  """Greater than or equal to the specified value (case-insensitive)."""
+  greaterThanOrEqualToInsensitive: String
+}
+
+"""
+A filter to be used against \`User\` object types. All fields are combined with a logical ‘and.’
+"""
+input UserFilter {
+  """Filter by the object’s \`rowId\` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s \`identityProviderId\` field."""
+  identityProviderId: UUIDFilter
+
+  """Filter by the object’s \`apiKeys\` relation."""
+  apiKeys: UserToManyApiKeyFilter
+
+  """Some related \`apiKeys\` exist."""
+  apiKeysExist: Boolean
+
+  """Filter by the object’s \`providerKeys\` relation."""
+  providerKeys: UserToManyProviderKeyFilter
+
+  """Some related \`providerKeys\` exist."""
+  providerKeysExist: Boolean
+
+  """Filter by the object’s \`usageEvents\` relation."""
+  usageEvents: UserToManyUsageEventFilter
+
+  """Some related \`usageEvents\` exist."""
+  usageEventsExist: Boolean
+
+  """Filter by the object’s \`userPreference\` relation."""
+  userPreference: UserPreferenceFilter
+
+  """A related \`userPreference\` exists."""
+  userPreferenceExists: Boolean
+
+  """Checks for all expressions in this list."""
+  and: [UserFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UserFilter!]
+
+  """Negates the expression."""
+  not: UserFilter
+}
+
+"""
+A filter to be used against many \`ApiKey\` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyApiKeyFilter {
+  """
+  Every related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyFilter
+
+  """
+  Some related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyFilter
+
+  """
+  No related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyFilter
+}
+
+"""
+A filter to be used against many \`ProviderKey\` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyProviderKeyFilter {
+  """
+  Every related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ProviderKeyFilter
+
+  """
+  Some related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ProviderKeyFilter
+
+  """
+  No related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ProviderKeyFilter
+}
+
+"""
+A filter to be used against \`ProviderKey\` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyFilter {
+  """Filter by the object’s \`rowId\` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s \`userId\` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s \`provider\` field."""
+  provider: StringFilter
+
+  """Filter by the object’s \`apiKeyProviders\` relation."""
+  apiKeyProviders: ProviderKeyToManyApiKeyProviderFilter
+
+  """Some related \`apiKeyProviders\` exist."""
+  apiKeyProvidersExist: Boolean
+
+  """Filter by the object’s \`user\` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [ProviderKeyFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [ProviderKeyFilter!]
+
+  """Negates the expression."""
+  not: ProviderKeyFilter
+}
+
+"""
+A filter to be used against many \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
+"""
+input ProviderKeyToManyApiKeyProviderFilter {
+  """
+  Every related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: ApiKeyProviderFilter
+
+  """
+  Some related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: ApiKeyProviderFilter
+
+  """
+  No related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: ApiKeyProviderFilter
+}
+
+"""
+A filter to be used against many \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
+"""
+input UserToManyUsageEventFilter {
+  """
+  Every related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  every: UsageEventFilter
+
+  """
+  Some related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  some: UsageEventFilter
+
+  """
+  No related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
+  """
+  none: UsageEventFilter
+}
+
+"""
+A filter to be used against \`UserPreference\` object types. All fields are combined with a logical ‘and.’
+"""
+input UserPreferenceFilter {
+  """Filter by the object’s \`rowId\` field."""
+  rowId: UUIDFilter
+
+  """Filter by the object’s \`userId\` field."""
+  userId: UUIDFilter
+
+  """Filter by the object’s \`user\` relation."""
+  user: UserFilter
+
+  """Checks for all expressions in this list."""
+  and: [UserPreferenceFilter!]
+
+  """Checks for any expressions in this list."""
+  or: [UserPreferenceFilter!]
+
+  """Negates the expression."""
+  not: UserPreferenceFilter
+}
+
+"""Methods to use when ordering \`ApiKeyProvider\`."""
+enum ApiKeyProviderOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  API_KEY_ID_ASC
+  API_KEY_ID_DESC
+  PROVIDER_KEY_ID_ASC
+  PROVIDER_KEY_ID_DESC
+}
+
+"""A connection to a list of \`UsageEvent\` values."""
+type UsageEventConnection {
+  """A list of \`UsageEvent\` objects."""
+  nodes: [UsageEvent]!
+
+  """
+  A list of edges which contains the \`UsageEvent\` and cursor to aid in pagination.
+  """
+  edges: [UsageEventEdge]!
+
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """The count of *all* \`UsageEvent\` you could get from the connection."""
+  totalCount: Int!
+}
+
+"""A \`UsageEvent\` edge in the connection."""
+type UsageEventEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The \`UsageEvent\` at the end of the edge."""
+  node: UsageEvent
+}
+
+"""
+A condition to be used against \`UsageEvent\` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input UsageEventCondition {
+  """Checks for equality with the object’s \`rowId\` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s \`userId\` field."""
+  userId: UUID
+
+  """Checks for equality with the object’s \`apiKeyId\` field."""
+  apiKeyId: UUID
+
+  """Checks for equality with the object’s \`createdAt\` field."""
+  createdAt: Datetime
+
+  """Checks for equality with the object’s \`dedupeKey\` field."""
+  dedupeKey: String
+}
+
+"""Methods to use when ordering \`UsageEvent\`."""
+enum UsageEventOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+  API_KEY_ID_ASC
+  API_KEY_ID_DESC
+  CREATED_AT_ASC
+  CREATED_AT_DESC
+  DEDUPE_KEY_ASC
+  DEDUPE_KEY_DESC
 }
 
 type User implements Node {
@@ -2062,24 +2908,6 @@ type ApiKeyEdge {
   node: ApiKey
 }
 
-"""A location in a connection that can be used for resuming pagination."""
-scalar Cursor
-
-"""Information about pagination in a connection."""
-type PageInfo {
-  """When paginating forwards, are there more items?"""
-  hasNextPage: Boolean!
-
-  """When paginating backwards, are there more items?"""
-  hasPreviousPage: Boolean!
-
-  """When paginating backwards, the cursor to continue."""
-  startCursor: Cursor
-
-  """When paginating forwards, the cursor to continue."""
-  endCursor: Cursor
-}
-
 """
 A condition to be used against \`ApiKey\` object types. All fields are tested for equality and combined with a logical ‘and.’
 """
@@ -2090,548 +2918,8 @@ input ApiKeyCondition {
   """Checks for equality with the object’s \`userId\` field."""
   userId: UUID
 
-  """Checks for equality with the object’s \`keyHash\` field."""
-  keyHash: String
-
   """Checks for equality with the object’s \`organizationId\` field."""
   organizationId: UUID
-}
-
-"""
-A filter to be used against \`ApiKey\` object types. All fields are combined with a logical ‘and.’
-"""
-input ApiKeyFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`userId\` field."""
-  userId: UUIDFilter
-
-  """Filter by the object’s \`keyHash\` field."""
-  keyHash: StringFilter
-
-  """Filter by the object’s \`organizationId\` field."""
-  organizationId: UUIDFilter
-
-  """Filter by the object’s \`apiKeyProviders\` relation."""
-  apiKeyProviders: ApiKeyToManyApiKeyProviderFilter
-
-  """Some related \`apiKeyProviders\` exist."""
-  apiKeyProvidersExist: Boolean
-
-  """Filter by the object’s \`usageEvents\` relation."""
-  usageEvents: ApiKeyToManyUsageEventFilter
-
-  """Some related \`usageEvents\` exist."""
-  usageEventsExist: Boolean
-
-  """Filter by the object’s \`user\` relation."""
-  user: UserFilter
-
-  """Checks for all expressions in this list."""
-  and: [ApiKeyFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [ApiKeyFilter!]
-
-  """Negates the expression."""
-  not: ApiKeyFilter
-}
-
-"""
-A filter to be used against UUID fields. All fields are combined with a logical ‘and.’
-"""
-input UUIDFilter {
-  """
-  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
-  """
-  isNull: Boolean
-
-  """Equal to the specified value."""
-  equalTo: UUID
-
-  """Not equal to the specified value."""
-  notEqualTo: UUID
-
-  """
-  Not equal to the specified value, treating null like an ordinary value.
-  """
-  distinctFrom: UUID
-
-  """Equal to the specified value, treating null like an ordinary value."""
-  notDistinctFrom: UUID
-
-  """Included in the specified list."""
-  in: [UUID!]
-
-  """Not included in the specified list."""
-  notIn: [UUID!]
-
-  """Less than the specified value."""
-  lessThan: UUID
-
-  """Less than or equal to the specified value."""
-  lessThanOrEqualTo: UUID
-
-  """Greater than the specified value."""
-  greaterThan: UUID
-
-  """Greater than or equal to the specified value."""
-  greaterThanOrEqualTo: UUID
-}
-
-"""
-A filter to be used against String fields. All fields are combined with a logical ‘and.’
-"""
-input StringFilter {
-  """
-  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
-  """
-  isNull: Boolean
-
-  """Equal to the specified value."""
-  equalTo: String
-
-  """Not equal to the specified value."""
-  notEqualTo: String
-
-  """
-  Not equal to the specified value, treating null like an ordinary value.
-  """
-  distinctFrom: String
-
-  """Equal to the specified value, treating null like an ordinary value."""
-  notDistinctFrom: String
-
-  """Included in the specified list."""
-  in: [String!]
-
-  """Not included in the specified list."""
-  notIn: [String!]
-
-  """Less than the specified value."""
-  lessThan: String
-
-  """Less than or equal to the specified value."""
-  lessThanOrEqualTo: String
-
-  """Greater than the specified value."""
-  greaterThan: String
-
-  """Greater than or equal to the specified value."""
-  greaterThanOrEqualTo: String
-
-  """Contains the specified string (case-sensitive)."""
-  includes: String
-
-  """Does not contain the specified string (case-sensitive)."""
-  notIncludes: String
-
-  """Contains the specified string (case-insensitive)."""
-  includesInsensitive: String
-
-  """Does not contain the specified string (case-insensitive)."""
-  notIncludesInsensitive: String
-
-  """Starts with the specified string (case-sensitive)."""
-  startsWith: String
-
-  """Does not start with the specified string (case-sensitive)."""
-  notStartsWith: String
-
-  """Starts with the specified string (case-insensitive)."""
-  startsWithInsensitive: String
-
-  """Does not start with the specified string (case-insensitive)."""
-  notStartsWithInsensitive: String
-
-  """Ends with the specified string (case-sensitive)."""
-  endsWith: String
-
-  """Does not end with the specified string (case-sensitive)."""
-  notEndsWith: String
-
-  """Ends with the specified string (case-insensitive)."""
-  endsWithInsensitive: String
-
-  """Does not end with the specified string (case-insensitive)."""
-  notEndsWithInsensitive: String
-
-  """
-  Matches the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
-  """
-  like: String
-
-  """
-  Does not match the specified pattern (case-sensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
-  """
-  notLike: String
-
-  """
-  Matches the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
-  """
-  likeInsensitive: String
-
-  """
-  Does not match the specified pattern (case-insensitive). An underscore (_) matches any single character; a percent sign (%) matches any sequence of zero or more characters.
-  """
-  notLikeInsensitive: String
-
-  """Equal to the specified value (case-insensitive)."""
-  equalToInsensitive: String
-
-  """Not equal to the specified value (case-insensitive)."""
-  notEqualToInsensitive: String
-
-  """
-  Not equal to the specified value, treating null like an ordinary value (case-insensitive).
-  """
-  distinctFromInsensitive: String
-
-  """
-  Equal to the specified value, treating null like an ordinary value (case-insensitive).
-  """
-  notDistinctFromInsensitive: String
-
-  """Included in the specified list (case-insensitive)."""
-  inInsensitive: [String!]
-
-  """Not included in the specified list (case-insensitive)."""
-  notInInsensitive: [String!]
-
-  """Less than the specified value (case-insensitive)."""
-  lessThanInsensitive: String
-
-  """Less than or equal to the specified value (case-insensitive)."""
-  lessThanOrEqualToInsensitive: String
-
-  """Greater than the specified value (case-insensitive)."""
-  greaterThanInsensitive: String
-
-  """Greater than or equal to the specified value (case-insensitive)."""
-  greaterThanOrEqualToInsensitive: String
-}
-
-"""
-A filter to be used against many \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
-"""
-input ApiKeyToManyApiKeyProviderFilter {
-  """
-  Every related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ApiKeyProviderFilter
-
-  """
-  Some related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ApiKeyProviderFilter
-
-  """
-  No related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ApiKeyProviderFilter
-}
-
-"""
-A filter to be used against \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
-"""
-input ApiKeyProviderFilter {
-  """Filter by the object’s \`apiKeyId\` field."""
-  apiKeyId: UUIDFilter
-
-  """Filter by the object’s \`providerKeyId\` field."""
-  providerKeyId: UUIDFilter
-
-  """Filter by the object’s \`apiKey\` relation."""
-  apiKey: ApiKeyFilter
-
-  """Filter by the object’s \`providerKey\` relation."""
-  providerKey: ProviderKeyFilter
-
-  """Checks for all expressions in this list."""
-  and: [ApiKeyProviderFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [ApiKeyProviderFilter!]
-
-  """Negates the expression."""
-  not: ApiKeyProviderFilter
-}
-
-"""
-A filter to be used against \`ProviderKey\` object types. All fields are combined with a logical ‘and.’
-"""
-input ProviderKeyFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`userId\` field."""
-  userId: UUIDFilter
-
-  """Filter by the object’s \`provider\` field."""
-  provider: StringFilter
-
-  """Filter by the object’s \`apiKeyProviders\` relation."""
-  apiKeyProviders: ProviderKeyToManyApiKeyProviderFilter
-
-  """Some related \`apiKeyProviders\` exist."""
-  apiKeyProvidersExist: Boolean
-
-  """Filter by the object’s \`user\` relation."""
-  user: UserFilter
-
-  """Checks for all expressions in this list."""
-  and: [ProviderKeyFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [ProviderKeyFilter!]
-
-  """Negates the expression."""
-  not: ProviderKeyFilter
-}
-
-"""
-A filter to be used against many \`ApiKeyProvider\` object types. All fields are combined with a logical ‘and.’
-"""
-input ProviderKeyToManyApiKeyProviderFilter {
-  """
-  Every related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ApiKeyProviderFilter
-
-  """
-  Some related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ApiKeyProviderFilter
-
-  """
-  No related \`ApiKeyProvider\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ApiKeyProviderFilter
-}
-
-"""
-A filter to be used against \`User\` object types. All fields are combined with a logical ‘and.’
-"""
-input UserFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`identityProviderId\` field."""
-  identityProviderId: UUIDFilter
-
-  """Filter by the object’s \`apiKeys\` relation."""
-  apiKeys: UserToManyApiKeyFilter
-
-  """Some related \`apiKeys\` exist."""
-  apiKeysExist: Boolean
-
-  """Filter by the object’s \`providerKeys\` relation."""
-  providerKeys: UserToManyProviderKeyFilter
-
-  """Some related \`providerKeys\` exist."""
-  providerKeysExist: Boolean
-
-  """Filter by the object’s \`usageEvents\` relation."""
-  usageEvents: UserToManyUsageEventFilter
-
-  """Some related \`usageEvents\` exist."""
-  usageEventsExist: Boolean
-
-  """Filter by the object’s \`userPreference\` relation."""
-  userPreference: UserPreferenceFilter
-
-  """A related \`userPreference\` exists."""
-  userPreferenceExists: Boolean
-
-  """Checks for all expressions in this list."""
-  and: [UserFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [UserFilter!]
-
-  """Negates the expression."""
-  not: UserFilter
-}
-
-"""
-A filter to be used against many \`ApiKey\` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyApiKeyFilter {
-  """
-  Every related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ApiKeyFilter
-
-  """
-  Some related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ApiKeyFilter
-
-  """
-  No related \`ApiKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ApiKeyFilter
-}
-
-"""
-A filter to be used against many \`ProviderKey\` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyProviderKeyFilter {
-  """
-  Every related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: ProviderKeyFilter
-
-  """
-  Some related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: ProviderKeyFilter
-
-  """
-  No related \`ProviderKey\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: ProviderKeyFilter
-}
-
-"""
-A filter to be used against many \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
-"""
-input UserToManyUsageEventFilter {
-  """
-  Every related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: UsageEventFilter
-
-  """
-  Some related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: UsageEventFilter
-
-  """
-  No related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: UsageEventFilter
-}
-
-"""
-A filter to be used against \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
-"""
-input UsageEventFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`userId\` field."""
-  userId: UUIDFilter
-
-  """Filter by the object’s \`apiKeyId\` field."""
-  apiKeyId: UUIDFilter
-
-  """Filter by the object’s \`createdAt\` field."""
-  createdAt: DatetimeFilter
-
-  """Filter by the object’s \`dedupeKey\` field."""
-  dedupeKey: StringFilter
-
-  """Filter by the object’s \`apiKey\` relation."""
-  apiKey: ApiKeyFilter
-
-  """Filter by the object’s \`user\` relation."""
-  user: UserFilter
-
-  """Checks for all expressions in this list."""
-  and: [UsageEventFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [UsageEventFilter!]
-
-  """Negates the expression."""
-  not: UsageEventFilter
-}
-
-"""
-A filter to be used against Datetime fields. All fields are combined with a logical ‘and.’
-"""
-input DatetimeFilter {
-  """
-  Is null (if \`true\` is specified) or is not null (if \`false\` is specified).
-  """
-  isNull: Boolean
-
-  """Equal to the specified value."""
-  equalTo: Datetime
-
-  """Not equal to the specified value."""
-  notEqualTo: Datetime
-
-  """
-  Not equal to the specified value, treating null like an ordinary value.
-  """
-  distinctFrom: Datetime
-
-  """Equal to the specified value, treating null like an ordinary value."""
-  notDistinctFrom: Datetime
-
-  """Included in the specified list."""
-  in: [Datetime!]
-
-  """Not included in the specified list."""
-  notIn: [Datetime!]
-
-  """Less than the specified value."""
-  lessThan: Datetime
-
-  """Less than or equal to the specified value."""
-  lessThanOrEqualTo: Datetime
-
-  """Greater than the specified value."""
-  greaterThan: Datetime
-
-  """Greater than or equal to the specified value."""
-  greaterThanOrEqualTo: Datetime
-}
-
-"""
-A filter to be used against \`UserPreference\` object types. All fields are combined with a logical ‘and.’
-"""
-input UserPreferenceFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`userId\` field."""
-  userId: UUIDFilter
-
-  """Filter by the object’s \`user\` relation."""
-  user: UserFilter
-
-  """Checks for all expressions in this list."""
-  and: [UserPreferenceFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [UserPreferenceFilter!]
-
-  """Negates the expression."""
-  not: UserPreferenceFilter
-}
-
-"""
-A filter to be used against many \`UsageEvent\` object types. All fields are combined with a logical ‘and.’
-"""
-input ApiKeyToManyUsageEventFilter {
-  """
-  Every related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  every: UsageEventFilter
-
-  """
-  Some related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  some: UsageEventFilter
-
-  """
-  No related \`UsageEvent\` matches the filter criteria. All fields are combined with a logical ‘and.’
-  """
-  none: UsageEventFilter
 }
 
 """Methods to use when ordering \`ApiKey\`."""
@@ -2643,8 +2931,6 @@ enum ApiKeyOrderBy {
   ROW_ID_DESC
   USER_ID_ASC
   USER_ID_DESC
-  KEY_HASH_ASC
-  KEY_HASH_DESC
   ORGANIZATION_ID_ASC
   ORGANIZATION_ID_DESC
 }
@@ -2666,6 +2952,43 @@ type ProviderKeyConnection {
   totalCount: Int!
 }
 
+"""A \`ProviderKey\` edge in the connection."""
+type ProviderKeyEdge {
+  """A cursor for use in pagination."""
+  cursor: Cursor
+
+  """The \`ProviderKey\` at the end of the edge."""
+  node: ProviderKey
+}
+
+"""
+A condition to be used against \`ProviderKey\` object types. All fields are tested
+for equality and combined with a logical ‘and.’
+"""
+input ProviderKeyCondition {
+  """Checks for equality with the object’s \`rowId\` field."""
+  rowId: UUID
+
+  """Checks for equality with the object’s \`userId\` field."""
+  userId: UUID
+
+  """Checks for equality with the object’s \`provider\` field."""
+  provider: String
+}
+
+"""Methods to use when ordering \`ProviderKey\`."""
+enum ProviderKeyOrderBy {
+  NATURAL
+  PRIMARY_KEY_ASC
+  PRIMARY_KEY_DESC
+  ROW_ID_ASC
+  ROW_ID_DESC
+  USER_ID_ASC
+  USER_ID_DESC
+  PROVIDER_ASC
+  PROVIDER_DESC
+}
+
 type ProviderKey implements Node {
   """
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
@@ -2674,7 +2997,6 @@ type ProviderKey implements Node {
   rowId: UUID!
   userId: UUID!
   provider: String!
-  encryptedKey: String!
   keyHint: String!
   modelPreference: String
   createdAt: Datetime
@@ -2718,109 +3040,6 @@ type ProviderKey implements Node {
   ): ApiKeyProviderConnection!
 }
 
-"""A connection to a list of \`ApiKeyProvider\` values."""
-type ApiKeyProviderConnection {
-  """A list of \`ApiKeyProvider\` objects."""
-  nodes: [ApiKeyProvider]!
-
-  """
-  A list of edges which contains the \`ApiKeyProvider\` and cursor to aid in pagination.
-  """
-  edges: [ApiKeyProviderEdge]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* \`ApiKeyProvider\` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A \`ApiKeyProvider\` edge in the connection."""
-type ApiKeyProviderEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`ApiKeyProvider\` at the end of the edge."""
-  node: ApiKeyProvider
-}
-
-"""
-A condition to be used against \`ApiKeyProvider\` object types. All fields are
-tested for equality and combined with a logical ‘and.’
-"""
-input ApiKeyProviderCondition {
-  """Checks for equality with the object’s \`apiKeyId\` field."""
-  apiKeyId: UUID
-
-  """Checks for equality with the object’s \`providerKeyId\` field."""
-  providerKeyId: UUID
-}
-
-"""Methods to use when ordering \`ApiKeyProvider\`."""
-enum ApiKeyProviderOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  API_KEY_ID_ASC
-  API_KEY_ID_DESC
-  PROVIDER_KEY_ID_ASC
-  PROVIDER_KEY_ID_DESC
-}
-
-"""A \`ProviderKey\` edge in the connection."""
-type ProviderKeyEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`ProviderKey\` at the end of the edge."""
-  node: ProviderKey
-}
-
-"""
-A condition to be used against \`ProviderKey\` object types. All fields are tested
-for equality and combined with a logical ‘and.’
-"""
-input ProviderKeyCondition {
-  """Checks for equality with the object’s \`rowId\` field."""
-  rowId: UUID
-
-  """Checks for equality with the object’s \`userId\` field."""
-  userId: UUID
-
-  """Checks for equality with the object’s \`provider\` field."""
-  provider: String
-}
-
-"""Methods to use when ordering \`ProviderKey\`."""
-enum ProviderKeyOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  ROW_ID_ASC
-  ROW_ID_DESC
-  USER_ID_ASC
-  USER_ID_DESC
-  PROVIDER_ASC
-  PROVIDER_DESC
-}
-
-"""A connection to a list of \`UsageEvent\` values."""
-type UsageEventConnection {
-  """A list of \`UsageEvent\` objects."""
-  nodes: [UsageEvent]!
-
-  """
-  A list of edges which contains the \`UsageEvent\` and cursor to aid in pagination.
-  """
-  edges: [UsageEventEdge]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* \`UsageEvent\` you could get from the connection."""
-  totalCount: Int!
-}
-
 type UsageEvent implements Node {
   """
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
@@ -2852,53 +3071,6 @@ A floating point number that requires more precision than IEEE 754 binary 64
 """
 scalar BigFloat
 
-"""A \`UsageEvent\` edge in the connection."""
-type UsageEventEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`UsageEvent\` at the end of the edge."""
-  node: UsageEvent
-}
-
-"""
-A condition to be used against \`UsageEvent\` object types. All fields are tested
-for equality and combined with a logical ‘and.’
-"""
-input UsageEventCondition {
-  """Checks for equality with the object’s \`rowId\` field."""
-  rowId: UUID
-
-  """Checks for equality with the object’s \`userId\` field."""
-  userId: UUID
-
-  """Checks for equality with the object’s \`apiKeyId\` field."""
-  apiKeyId: UUID
-
-  """Checks for equality with the object’s \`createdAt\` field."""
-  createdAt: Datetime
-
-  """Checks for equality with the object’s \`dedupeKey\` field."""
-  dedupeKey: String
-}
-
-"""Methods to use when ordering \`UsageEvent\`."""
-enum UsageEventOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  ROW_ID_ASC
-  ROW_ID_DESC
-  USER_ID_ASC
-  USER_ID_DESC
-  API_KEY_ID_ASC
-  API_KEY_ID_DESC
-  CREATED_AT_ASC
-  CREATED_AT_DESC
-  DEDUPE_KEY_ASC
-  DEDUPE_KEY_DESC
-}
-
 type UserPreference implements Node {
   """
   A globally unique identifier. Can be used in various places throughout the system to identify this single value.
@@ -2927,739 +3099,6 @@ type Workspace implements Node {
   description: String
   createdAt: Datetime
   updatedAt: Datetime
-}
-
-"""A connection to a list of \`Workspace\` values."""
-type WorkspaceConnection {
-  """A list of \`Workspace\` objects."""
-  nodes: [Workspace]!
-
-  """
-  A list of edges which contains the \`Workspace\` and cursor to aid in pagination.
-  """
-  edges: [WorkspaceEdge]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* \`Workspace\` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A \`Workspace\` edge in the connection."""
-type WorkspaceEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`Workspace\` at the end of the edge."""
-  node: Workspace
-}
-
-"""
-A condition to be used against \`Workspace\` object types. All fields are tested
-for equality and combined with a logical ‘and.’
-"""
-input WorkspaceCondition {
-  """Checks for equality with the object’s \`rowId\` field."""
-  rowId: UUID
-
-  """Checks for equality with the object’s \`organizationId\` field."""
-  organizationId: UUID
-
-  """Checks for equality with the object’s \`slug\` field."""
-  slug: String
-}
-
-"""
-A filter to be used against \`Workspace\` object types. All fields are combined with a logical ‘and.’
-"""
-input WorkspaceFilter {
-  """Filter by the object’s \`rowId\` field."""
-  rowId: UUIDFilter
-
-  """Filter by the object’s \`organizationId\` field."""
-  organizationId: UUIDFilter
-
-  """Filter by the object’s \`slug\` field."""
-  slug: StringFilter
-
-  """Checks for all expressions in this list."""
-  and: [WorkspaceFilter!]
-
-  """Checks for any expressions in this list."""
-  or: [WorkspaceFilter!]
-
-  """Negates the expression."""
-  not: WorkspaceFilter
-}
-
-"""Methods to use when ordering \`Workspace\`."""
-enum WorkspaceOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  ROW_ID_ASC
-  ROW_ID_DESC
-  ORGANIZATION_ID_ASC
-  ORGANIZATION_ID_DESC
-  SLUG_ASC
-  SLUG_DESC
-}
-
-"""A connection to a list of \`UserPreference\` values."""
-type UserPreferenceConnection {
-  """A list of \`UserPreference\` objects."""
-  nodes: [UserPreference]!
-
-  """
-  A list of edges which contains the \`UserPreference\` and cursor to aid in pagination.
-  """
-  edges: [UserPreferenceEdge]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* \`UserPreference\` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A \`UserPreference\` edge in the connection."""
-type UserPreferenceEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`UserPreference\` at the end of the edge."""
-  node: UserPreference
-}
-
-"""
-A condition to be used against \`UserPreference\` object types. All fields are
-tested for equality and combined with a logical ‘and.’
-"""
-input UserPreferenceCondition {
-  """Checks for equality with the object’s \`rowId\` field."""
-  rowId: UUID
-
-  """Checks for equality with the object’s \`userId\` field."""
-  userId: UUID
-}
-
-"""Methods to use when ordering \`UserPreference\`."""
-enum UserPreferenceOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  ROW_ID_ASC
-  ROW_ID_DESC
-  USER_ID_ASC
-  USER_ID_DESC
-}
-
-"""A connection to a list of \`User\` values."""
-type UserConnection {
-  """A list of \`User\` objects."""
-  nodes: [User]!
-
-  """
-  A list of edges which contains the \`User\` and cursor to aid in pagination.
-  """
-  edges: [UserEdge]!
-
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-
-  """The count of *all* \`User\` you could get from the connection."""
-  totalCount: Int!
-}
-
-"""A \`User\` edge in the connection."""
-type UserEdge {
-  """A cursor for use in pagination."""
-  cursor: Cursor
-
-  """The \`User\` at the end of the edge."""
-  node: User
-}
-
-"""
-A condition to be used against \`User\` object types. All fields are tested for equality and combined with a logical ‘and.’
-"""
-input UserCondition {
-  """Checks for equality with the object’s \`rowId\` field."""
-  rowId: UUID
-
-  """Checks for equality with the object’s \`identityProviderId\` field."""
-  identityProviderId: UUID
-}
-
-"""Methods to use when ordering \`User\`."""
-enum UserOrderBy {
-  NATURAL
-  PRIMARY_KEY_ASC
-  PRIMARY_KEY_DESC
-  ROW_ID_ASC
-  ROW_ID_DESC
-  IDENTITY_PROVIDER_ID_ASC
-  IDENTITY_PROVIDER_ID_DESC
-}
-
-type Observer {
-  id: UUID!
-  name: String!
-  email: String!
-
-  """
-  List active API keys. With \`organizationId\`, every key that belongs to
-  that workspace (members only); otherwise the current user's own keys,
-  optionally filtered by Synapse workspace resource.
-  """
-  apiKeys(organizationId: UUID, workspaceId: UUID): [ApiKeyInfo!]!
-
-  """Fetch current user's preferences."""
-  preferences: UserPreferences
-
-  """List provider keys for the current user."""
-  providerKeys: [ProviderKeyInfo!]!
-
-  """A workspace's Synapse spending limit (workspace members only)."""
-  spendingLimit(organizationId: UUID!): SpendingLimit
-}
-
-input GenerateApiKeyInput {
-  name: String!
-  mode: String!
-
-  """
-  Workspace (organization) the key belongs to and bills. Required unless
-  \`workspaceId\` names a Synapse workspace resource, whose organization
-  the key then inherits
-  """
-  organizationId: UUID
-  workspaceId: UUID
-}
-
-type GenerateApiKeyPayload {
-  rawKey: String!
-  apiKeyId: UUID!
-  keyHint: String!
-}
-
-type LinkedProviderInfo {
-  id: UUID!
-  provider: String!
-  keyHint: String!
-}
-
-type ApiKeyInfo {
-  id: UUID!
-  name: String!
-  keyHint: String!
-  mode: String!
-  createdAt: Datetime!
-  lastUsedAt: Datetime
-  expiresAt: Datetime
-  revokedAt: Datetime
-  linkedProviders: [LinkedProviderInfo!]!
-}
-
-input UpdateUserPreferencesInput {
-  defaultProvider: String
-  notifyUsageThreshold: Boolean
-  notifyKeyExpiry: Boolean
-}
-
-type UserPreferences {
-  defaultProvider: String
-  notifyUsageThreshold: Boolean!
-  notifyKeyExpiry: Boolean!
-}
-
-input SetProviderKeyInput {
-  provider: String!
-  key: String!
-}
-
-type ProviderKeyInfo {
-  id: UUID!
-  userId: UUID!
-  provider: String!
-  keyHint: String!
-  createdAt: Datetime
-  updatedAt: Datetime
-  modelPreference: String
-}
-
-type SpendingLimit {
-  organizationId: UUID!
-
-  """Hard monthly cap on request overage, in cents (null when unset)"""
-  hardLimitCents: Int
-
-  """Overage owed this period, in cents, as last settled"""
-  currentSpendCents: Int!
-
-  """Whether requests past the included allowance are paused at the limit"""
-  suspended: Boolean!
-}
-
-type ModelBreakdown {
-  model: String!
-  provider: String!
-  inputTokens: Int!
-  outputTokens: Int!
-  requests: Int!
-}
-
-type DailyUsage {
-  date: String!
-  inputTokens: Int!
-  outputTokens: Int!
-  requests: Int!
-}
-
-type UsageBreakdown {
-  byModel: [ModelBreakdown!]!
-  byDay: [DailyUsage!]!
-}
-
-"""The root query type which gives access points into the data universe."""
-type Query implements Node {
-  """
-  Exposes the root query type nested one level down. This is helpful for Relay 1
-  which can only query top level fields if they are in a particular form.
-  """
-  query: Query!
-
-  """
-  The root query type must be a \`Node\` to work well with Relay 1 mutations. This just resolves to \`query\`.
-  """
-  id: ID!
-
-  """Fetches an object given its globally unique \`ID\`."""
-  node(
-    """The globally unique \`ID\`."""
-    id: ID!
-  ): Node
-
-  """Get a single \`ApiKeyProvider\`."""
-  apiKeyProvider(apiKeyId: UUID!, providerKeyId: UUID!): ApiKeyProvider
-
-  """Get a single \`Workspace\`."""
-  workspace(rowId: UUID!): Workspace
-
-  """Get a single \`UserPreference\`."""
-  userPreference(rowId: UUID!): UserPreference
-
-  """Get a single \`UserPreference\`."""
-  userPreferenceByUserId(userId: UUID!): UserPreference
-
-  """Get a single \`ProviderKey\`."""
-  providerKey(rowId: UUID!): ProviderKey
-
-  """Get a single \`User\`."""
-  user(rowId: UUID!): User
-
-  """Get a single \`User\`."""
-  userByIdentityProviderId(identityProviderId: UUID!): User
-
-  """Get a single \`UsageEvent\`."""
-  usageEvent(rowId: UUID!): UsageEvent
-
-  """Get a single \`ApiKey\`."""
-  apiKey(rowId: UUID!): ApiKey
-
-  """Get a single \`ApiKey\`."""
-  apiKeyByKeyHash(keyHash: String!): ApiKey
-
-  """Reads a single \`ApiKeyProvider\` using its globally unique \`ID\`."""
-  apiKeyProviderById(
-    """
-    The globally unique \`ID\` to be used in selecting a single \`ApiKeyProvider\`.
-    """
-    id: ID!
-  ): ApiKeyProvider
-
-  """Reads a single \`Workspace\` using its globally unique \`ID\`."""
-  workspaceById(
-    """The globally unique \`ID\` to be used in selecting a single \`Workspace\`."""
-    id: ID!
-  ): Workspace
-
-  """Reads a single \`UserPreference\` using its globally unique \`ID\`."""
-  userPreferenceById(
-    """
-    The globally unique \`ID\` to be used in selecting a single \`UserPreference\`.
-    """
-    id: ID!
-  ): UserPreference
-
-  """Reads a single \`ProviderKey\` using its globally unique \`ID\`."""
-  providerKeyById(
-    """
-    The globally unique \`ID\` to be used in selecting a single \`ProviderKey\`.
-    """
-    id: ID!
-  ): ProviderKey
-
-  """Reads a single \`User\` using its globally unique \`ID\`."""
-  userById(
-    """The globally unique \`ID\` to be used in selecting a single \`User\`."""
-    id: ID!
-  ): User
-
-  """Reads a single \`UsageEvent\` using its globally unique \`ID\`."""
-  usageEventById(
-    """
-    The globally unique \`ID\` to be used in selecting a single \`UsageEvent\`.
-    """
-    id: ID!
-  ): UsageEvent
-
-  """Reads a single \`ApiKey\` using its globally unique \`ID\`."""
-  apiKeyById(
-    """The globally unique \`ID\` to be used in selecting a single \`ApiKey\`."""
-    id: ID!
-  ): ApiKey
-
-  """Reads and enables pagination through a set of \`ApiKeyProvider\`."""
-  apiKeyProviders(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ApiKeyProviderCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ApiKeyProviderFilter
-
-    """The method to use when ordering \`ApiKeyProvider\`."""
-    orderBy: [ApiKeyProviderOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ApiKeyProviderConnection
-
-  """Reads and enables pagination through a set of \`Workspace\`."""
-  workspaces(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: WorkspaceCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: WorkspaceFilter
-
-    """The method to use when ordering \`Workspace\`."""
-    orderBy: [WorkspaceOrderBy!] = [PRIMARY_KEY_ASC]
-  ): WorkspaceConnection
-
-  """Reads and enables pagination through a set of \`UserPreference\`."""
-  userPreferences(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: UserPreferenceCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: UserPreferenceFilter
-
-    """The method to use when ordering \`UserPreference\`."""
-    orderBy: [UserPreferenceOrderBy!] = [PRIMARY_KEY_ASC]
-  ): UserPreferenceConnection
-
-  """Reads and enables pagination through a set of \`ProviderKey\`."""
-  providerKeys(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ProviderKeyCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ProviderKeyFilter
-
-    """The method to use when ordering \`ProviderKey\`."""
-    orderBy: [ProviderKeyOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ProviderKeyConnection
-
-  """Reads and enables pagination through a set of \`User\`."""
-  users(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: UserCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: UserFilter
-
-    """The method to use when ordering \`User\`."""
-    orderBy: [UserOrderBy!] = [PRIMARY_KEY_ASC]
-  ): UserConnection
-
-  """Reads and enables pagination through a set of \`UsageEvent\`."""
-  usageEvents(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: UsageEventCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: UsageEventFilter
-
-    """The method to use when ordering \`UsageEvent\`."""
-    orderBy: [UsageEventOrderBy!] = [PRIMARY_KEY_ASC]
-  ): UsageEventConnection
-
-  """Reads and enables pagination through a set of \`ApiKey\`."""
-  apiKeys(
-    """Only read the first \`n\` values of the set."""
-    first: Int
-
-    """Only read the last \`n\` values of the set."""
-    last: Int
-
-    """
-    Skip the first \`n\` values from our \`after\` cursor, an alternative to cursor
-    based pagination. May not be used with \`last\`.
-    """
-    offset: Int
-
-    """Read all values in the set before (above) this cursor."""
-    before: Cursor
-
-    """Read all values in the set after (below) this cursor."""
-    after: Cursor
-
-    """
-    A condition to be used in determining which values should be returned by the collection.
-    """
-    condition: ApiKeyCondition
-
-    """
-    A filter to be used in determining which values should be returned by the collection.
-    """
-    filter: ApiKeyFilter
-
-    """The method to use when ordering \`ApiKey\`."""
-    orderBy: [ApiKeyOrderBy!] = [PRIMARY_KEY_ASC]
-  ): ApiKeyConnection
-
-  """The currently authenticated user. Returns null if not authenticated."""
-  observer: Observer
-
-  """
-  Aggregated usage breakdown by model and day for charts.
-  Optionally filter by workspaceId for workspace-scoped usage.
-  """
-  usageBreakdown(startDate: String!, endDate: String!, workspaceId: String): UsageBreakdown
-
-  """List workspaces for an organization"""
-  orgWorkspaces(organizationId: UUID!): [WorkspaceResult!]!
-}
-
-"""
-The root mutation type which contains root level fields which mutate data.
-"""
-type Mutation {
-  """Generate a new API key. The raw key is returned once and never stored."""
-  generateApiKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: GenerateApiKeyInput!
-  ): GenerateApiKeyPayload
-
-  """Revoke an API key by setting its revokedAt timestamp."""
-  revokeApiKey(id: UUID!): Boolean
-
-  """Link a provider key to an API key so requests use that provider."""
-  linkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
-
-  """Unlink a provider key from an API key."""
-  unlinkProviderKey(apiKeyId: UUID!, providerKeyId: UUID!): Boolean
-
-  """Update user preferences. Creates preferences row if it doesn't exist."""
-  updateUserPreferences(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: UpdateUserPreferencesInput!
-  ): UserPreferences
-
-  """Encrypt and upsert a BYOK provider key."""
-  setProviderKey(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: SetProviderKeyInput!
-  ): ProviderKeyInfo
-
-  """Delete a provider key. Verifies ownership before deletion."""
-  removeProviderKey(id: UUID!): Boolean
-
-  """
-  Set a workspace's hard spending limit in cents (workspace admins only).
-  Raising it above the overage already owed resumes paused requests.
-  """
-  setSpendingLimit(organizationId: UUID!, hardLimitCents: Int!): SpendingLimit!
-
-  """Create a new workspace within an organization"""
-  addWorkspace(
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: NewWorkspaceInput!
-  ): WorkspaceResult
-
-  """Update a workspace's details"""
-  patchWorkspace(
-    id: UUID!
-
-    """
-    The exclusive input argument for this mutation. An object type, make sure to see documentation for this object’s fields.
-    """
-    input: PatchWorkspaceInput!
-  ): WorkspaceResult
-
-  """Delete a workspace"""
-  removeWorkspace(id: UUID!): Boolean
-}
-
-input NewWorkspaceInput {
-  organizationId: UUID!
-  name: String!
-  slug: String!
-  description: String
-}
-
-input PatchWorkspaceInput {
-  name: String
-  slug: String
-  description: String
-}
-
-type WorkspaceResult {
-  id: UUID!
-  organizationId: UUID!
-  name: String!
-  slug: String!
-  description: String
-  createdAt: Datetime!
 }`;
 export const objects = {
   Query: {
@@ -3667,73 +3106,9 @@ export const objects = {
       return !0;
     },
     plans: {
-      apiKey(_$root, {
-        $rowId
-      }) {
-        return spec_resource_api_keyPgResource.get({
-          id: $rowId
-        });
-      },
-      apiKeyById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_ApiKey($nodeId);
-      },
-      apiKeyByKeyHash(_$root, {
-        $keyHash
-      }) {
-        return spec_resource_api_keyPgResource.get({
-          key_hash: $keyHash
-        });
-      },
-      apiKeyProvider(_$root, {
-        $apiKeyId,
-        $providerKeyId
-      }) {
-        return spec_resource_api_key_providerPgResource.get({
-          api_key_id: $apiKeyId,
-          provider_key_id: $providerKeyId
-        });
-      },
-      apiKeyProviderById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_ApiKeyProvider($nodeId);
-      },
-      apiKeyProviders: {
-        plan() {
-          return connection(spec_resource_api_key_providerPgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
-      },
-      apiKeys: {
-        plan() {
-          return connection(spec_resource_api_keyPgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
-      },
       id($parent) {
         const specifier = nodeIdHandlerByTypeName.Query.plan($parent);
         return lambda(specifier, nodeIdCodecs[nodeIdHandlerByTypeName.Query.codec.name].encode);
-      },
-      node(_$root, fieldArgs) {
-        return fieldArgs.getRaw("id");
       },
       observer: {
         resolve(_source, _args, ctx) {
@@ -3762,32 +3137,6 @@ export const objects = {
           return db.select().from(workspaceTable).where(eq(workspaceTable.organizationId, args.organizationId));
         },
         subscribe: undefined
-      },
-      providerKey(_$root, {
-        $rowId
-      }) {
-        return spec_resource_provider_keyPgResource.get({
-          id: $rowId
-        });
-      },
-      providerKeyById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_ProviderKey($nodeId);
-      },
-      providerKeys: {
-        plan() {
-          return connection(spec_resource_provider_keyPgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
       },
       query() {
         return constant(EMPTY_OBJECT2);
@@ -3847,13 +3196,6 @@ export const objects = {
                 code: "NOT_FOUND"
               }
             });
-            if (authz) {
-              if (!(await authz.checkPermission(observer.id, "organization", workspace.organizationId, "member"))) throw new GraphQLError("Insufficient permissions: requires member", {
-                extensions: {
-                  code: "FORBIDDEN"
-                }
-              });
-            }
             conditions.push(eq(usageEventTable.workspaceId, args.workspaceId));
           }
           const dateFilter = and(...conditions),
@@ -3876,124 +3218,6 @@ export const objects = {
           };
         },
         subscribe: undefined
-      },
-      usageEvent(_$root, {
-        $rowId
-      }) {
-        return spec_resource_usage_eventPgResource.get({
-          id: $rowId
-        });
-      },
-      usageEventById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_UsageEvent($nodeId);
-      },
-      usageEvents: {
-        plan() {
-          return connection(spec_resource_usage_eventPgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
-      },
-      user(_$root, {
-        $rowId
-      }) {
-        return spec_resource_userPgResource.get({
-          id: $rowId
-        });
-      },
-      userById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_User($nodeId);
-      },
-      userByIdentityProviderId(_$root, {
-        $identityProviderId
-      }) {
-        return spec_resource_userPgResource.get({
-          identity_provider_id: $identityProviderId
-        });
-      },
-      userPreference(_$root, {
-        $rowId
-      }) {
-        return spec_resource_user_preferencePgResource.get({
-          id: $rowId
-        });
-      },
-      userPreferenceById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_UserPreference($nodeId);
-      },
-      userPreferenceByUserId(_$root, {
-        $userId
-      }) {
-        return spec_resource_user_preferencePgResource.get({
-          user_id: $userId
-        });
-      },
-      userPreferences: {
-        plan() {
-          return connection(spec_resource_user_preferencePgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
-      },
-      users: {
-        plan() {
-          return connection(spec_resource_userPgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
-      },
-      workspace(_$root, {
-        $rowId
-      }) {
-        return spec_resource_workspacePgResource.get({
-          id: $rowId
-        });
-      },
-      workspaceById(_$parent, args) {
-        const $nodeId = args.getRaw("id");
-        return nodeFetcher_Workspace($nodeId);
-      },
-      workspaces: {
-        plan() {
-          return connection(spec_resource_workspacePgResource.find());
-        },
-        args: {
-          first: applyFirstArg,
-          last: applyLastArg,
-          offset: applyOffsetArg,
-          before: applyBeforeArg,
-          after: applyAfterArg,
-          condition: applyConditionArgToConnection,
-          filter: ApiKey_apiKeyProvidersfilterApplyPlan,
-          orderBy: applyOrderByArgToConnection
-        }
       }
     }
   },
@@ -4636,7 +3860,7 @@ export const objects = {
               code: "UNAUTHENTICATED"
             }
           });
-          await checkOrgPermission(authz, false, observer, args.organizationId, "admin");
+          await checkOrgPermission(null, false, observer, args.organizationId, "admin");
           try {
             return await spendingLimits.setHardLimit(args.organizationId, args.hardLimitCents);
           } catch (err) {
@@ -4788,9 +4012,6 @@ export const objects = {
       id($parent) {
         const specifier = nodeIdHandler_ApiKey.plan($parent);
         return lambda(specifier, nodeIdCodecs[nodeIdHandler_ApiKey.codec.name].encode);
-      },
-      keyHash($record) {
-        return $record.get("key_hash");
       },
       keyHint: ApiKey_keyHintPlan,
       lastUsedAt($record) {
@@ -4949,7 +4170,7 @@ export const objects = {
       },
       spendingLimit: {
         async resolve(observer, args) {
-          await checkOrgPermission(authz, false, observer, args.organizationId, "member");
+          await checkOrgPermission(null, false, observer, args.organizationId, "member");
           try {
             return await spendingLimits.getSpendingLimit(args.organizationId);
           } catch (err) {
@@ -4982,9 +4203,6 @@ export const objects = {
         }
       },
       createdAt: ApiKeyProvider_createdAtPlan,
-      encryptedKey($record) {
-        return $record.get("encrypted_key");
-      },
       id($parent) {
         const specifier = nodeIdHandler_ProviderKey.plan($parent);
         return lambda(specifier, nodeIdCodecs[nodeIdHandler_ProviderKey.codec.name].encode);
@@ -5131,12 +4349,6 @@ export const objects = {
       return spec_resource_userPgResource.get(spec);
     }
   },
-  UserConnection: {
-    assertStep: ConnectionStep,
-    plans: {
-      totalCount: totalCountConnectionPlan
-    }
-  },
   UserPreference: {
     assertStep: assertPgClassSingleStep,
     plans: {
@@ -5164,12 +4376,6 @@ export const objects = {
       return spec_resource_user_preferencePgResource.get(spec);
     }
   },
-  UserPreferenceConnection: {
-    assertStep: ConnectionStep,
-    plans: {
-      totalCount: totalCountConnectionPlan
-    }
-  },
   Workspace: {
     assertStep: assertPgClassSingleStep,
     plans: {
@@ -5186,12 +4392,6 @@ export const objects = {
       const spec = Object.create(null);
       for (const pkCol of workspaceUniques[0].attributes) spec[pkCol] = get2($specifier, pkCol);
       return spec_resource_workspacePgResource.get(spec);
-    }
-  },
-  WorkspaceConnection: {
-    assertStep: ConnectionStep,
-    plans: {
-      totalCount: totalCountConnectionPlan
     }
   }
 };
@@ -5212,17 +4412,16 @@ export const interfaces = {
 export const inputObjects = {
   ApiKeyCondition: {
     plans: {
-      keyHash($condition, val) {
-        return applyAttributeCondition("key_hash", TYPES.text, $condition, val);
+      organizationId($condition, val) {
+        return applyAttributeCondition("organization_id", TYPES.uuid, $condition, val);
       },
-      organizationId: ApiKeyCondition_organizationIdApply,
-      rowId: ApiKeyCondition_rowIdApply,
-      userId: ApiKeyCondition_userIdApply
+      rowId: UsageEventCondition_rowIdApply,
+      userId: UsageEventCondition_userIdApply
     }
   },
   ApiKeyFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
+      and: ApiKeyProviderFilter_andApply,
       apiKeyProviders($where, value) {
         assertAllowed(value, "object");
         const $rel = $where.andPlan();
@@ -5247,11 +4446,8 @@ export const inputObjects = {
           $subQuery.where(sql`${$where.alias}.${sql.identifier(localAttribute)} = ${$subQuery.alias}.${sql.identifier(remoteAttribute)}`);
         });
       },
-      keyHash(queryBuilder, value) {
-        return pgConnectionFilterApplyAttribute("keyHash", "key_hash", spec_apiKey.attributes.key_hash, queryBuilder, value);
-      },
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       organizationId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("organizationId", "organization_id", spec_apiKey.attributes.organization_id, queryBuilder, value);
       },
@@ -5300,15 +4496,15 @@ export const inputObjects = {
   },
   ApiKeyProviderFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
+      and: ApiKeyProviderFilter_andApply,
       apiKey($where, value) {
         return pgConnectionFilterApplySingleRelation(spec_resource_api_keyPgResource, apiKeyIdentifier, registryConfig.pgRelations.apiKeyProvider.apiKeyByMyApiKeyId.localAttributes, registryConfig.pgRelations.apiKeyProvider.apiKeyByMyApiKeyId.remoteAttributes, $where, value);
       },
       apiKeyId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("apiKeyId", "api_key_id", spec_apiKeyProvider.attributes.api_key_id, queryBuilder, value);
       },
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       providerKey($where, value) {
         return pgConnectionFilterApplySingleRelation(spec_resource_provider_keyPgResource, providerKeyIdentifier, registryConfig.pgRelations.apiKeyProvider.providerKeyByMyProviderKeyId.localAttributes, registryConfig.pgRelations.apiKeyProvider.providerKeyByMyProviderKeyId.remoteAttributes, $where, value);
       },
@@ -5351,13 +4547,13 @@ export const inputObjects = {
       provider($condition, val) {
         return applyAttributeCondition("provider", TYPES.text, $condition, val);
       },
-      rowId: ApiKeyCondition_rowIdApply,
-      userId: ApiKeyCondition_userIdApply
+      rowId: UsageEventCondition_rowIdApply,
+      userId: UsageEventCondition_userIdApply
     }
   },
   ProviderKeyFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
+      and: ApiKeyProviderFilter_andApply,
       apiKeyProviders($where, value) {
         assertAllowed(value, "object");
         const $rel = $where.andPlan();
@@ -5382,8 +4578,8 @@ export const inputObjects = {
           $subQuery.where(sql`${$where.alias}.${sql.identifier(localAttribute)} = ${$subQuery.alias}.${sql.identifier(remoteAttribute)}`);
         });
       },
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       provider(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("provider", "provider", spec_providerKey.attributes.provider, queryBuilder, value);
       },
@@ -5507,13 +4703,13 @@ export const inputObjects = {
       dedupeKey($condition, val) {
         return applyAttributeCondition("dedupe_key", TYPES.text, $condition, val);
       },
-      rowId: ApiKeyCondition_rowIdApply,
-      userId: ApiKeyCondition_userIdApply
+      rowId: UsageEventCondition_rowIdApply,
+      userId: UsageEventCondition_userIdApply
     }
   },
   UsageEventFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
+      and: ApiKeyProviderFilter_andApply,
       apiKey($where, value) {
         return pgConnectionFilterApplySingleRelation(spec_resource_api_keyPgResource, apiKeyIdentifier, registryConfig.pgRelations.usageEvent.apiKeyByMyApiKeyId.localAttributes, registryConfig.pgRelations.usageEvent.apiKeyByMyApiKeyId.remoteAttributes, $where, value);
       },
@@ -5526,8 +4722,8 @@ export const inputObjects = {
       dedupeKey(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("dedupeKey", "dedupe_key", spec_usageEvent.attributes.dedupe_key, queryBuilder, value);
       },
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       rowId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("rowId", "id", spec_usageEvent.attributes.id, queryBuilder, value);
       },
@@ -5539,17 +4735,9 @@ export const inputObjects = {
       }
     }
   },
-  UserCondition: {
-    plans: {
-      identityProviderId($condition, val) {
-        return applyAttributeCondition("identity_provider_id", TYPES.uuid, $condition, val);
-      },
-      rowId: ApiKeyCondition_rowIdApply
-    }
-  },
   UserFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
+      and: ApiKeyProviderFilter_andApply,
       apiKeys($where, value) {
         assertAllowed(value, "object");
         const $rel = $where.andPlan();
@@ -5577,8 +4765,8 @@ export const inputObjects = {
       identityProviderId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("identityProviderId", "identity_provider_id", spec_user.attributes.identity_provider_id, queryBuilder, value);
       },
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       providerKeys($where, value) {
         assertAllowed(value, "object");
         const $rel = $where.andPlan();
@@ -5657,17 +4845,11 @@ export const inputObjects = {
       }
     }
   },
-  UserPreferenceCondition: {
-    plans: {
-      rowId: ApiKeyCondition_rowIdApply,
-      userId: ApiKeyCondition_userIdApply
-    }
-  },
   UserPreferenceFilter: {
     plans: {
-      and: ApiKeyFilter_andApply,
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
+      and: ApiKeyProviderFilter_andApply,
+      not: ApiKeyProviderFilter_notApply,
+      or: ApiKeyProviderFilter_orApply,
       rowId(queryBuilder, value) {
         return pgConnectionFilterApplyAttribute("rowId", "id", spec_userPreference.attributes.id, queryBuilder, value);
       },
@@ -5714,31 +4896,6 @@ export const inputObjects = {
       notEqualTo: pgAggregatesApply_notEqualTo,
       notIn: pgAggregatesApply_notIn
     }
-  },
-  WorkspaceCondition: {
-    plans: {
-      organizationId: ApiKeyCondition_organizationIdApply,
-      rowId: ApiKeyCondition_rowIdApply,
-      slug($condition, val) {
-        return applyAttributeCondition("slug", TYPES.text, $condition, val);
-      }
-    }
-  },
-  WorkspaceFilter: {
-    plans: {
-      and: ApiKeyFilter_andApply,
-      not: ApiKeyFilter_notApply,
-      or: ApiKeyFilter_orApply,
-      organizationId(queryBuilder, value) {
-        return pgConnectionFilterApplyAttribute("organizationId", "organization_id", spec_workspace.attributes.organization_id, queryBuilder, value);
-      },
-      rowId(queryBuilder, value) {
-        return pgConnectionFilterApplyAttribute("rowId", "id", spec_workspace.attributes.id, queryBuilder, value);
-      },
-      slug(queryBuilder, value) {
-        return pgConnectionFilterApplyAttribute("slug", "slug", spec_workspace.attributes.slug, queryBuilder, value);
-      }
-    }
   }
 };
 export const scalars = {
@@ -5780,22 +4937,18 @@ export const scalars = {
 export const enums = {
   ApiKeyOrderBy: {
     values: {
-      KEY_HASH_ASC(queryBuilder) {
+      ORGANIZATION_ID_ASC(queryBuilder) {
         queryBuilder.orderBy({
-          attribute: "key_hash",
+          attribute: "organization_id",
           direction: "ASC"
         });
-        queryBuilder.setOrderIsUnique();
       },
-      KEY_HASH_DESC(queryBuilder) {
+      ORGANIZATION_ID_DESC(queryBuilder) {
         queryBuilder.orderBy({
-          attribute: "key_hash",
+          attribute: "organization_id",
           direction: "DESC"
         });
-        queryBuilder.setOrderIsUnique();
       },
-      ORGANIZATION_ID_ASC: ApiKeyOrderBy_ORGANIZATION_ID_ASCApply,
-      ORGANIZATION_ID_DESC: ApiKeyOrderBy_ORGANIZATION_ID_DESCApply,
       PRIMARY_KEY_ASC(queryBuilder) {
         api_keyUniques[0].attributes.forEach(attributeName => {
           queryBuilder.orderBy({
@@ -5814,10 +4967,10 @@ export const enums = {
         });
         queryBuilder.setOrderIsUnique();
       },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply,
-      USER_ID_ASC: ApiKeyOrderBy_USER_ID_ASCApply,
-      USER_ID_DESC: ApiKeyOrderBy_USER_ID_DESCApply
+      ROW_ID_ASC: UsageEventOrderBy_ROW_ID_ASCApply,
+      ROW_ID_DESC: UsageEventOrderBy_ROW_ID_DESCApply,
+      USER_ID_ASC: UsageEventOrderBy_USER_ID_ASCApply,
+      USER_ID_DESC: UsageEventOrderBy_USER_ID_DESCApply
     }
   },
   ApiKeyProviderOrderBy: {
@@ -5900,10 +5053,10 @@ export const enums = {
           direction: "DESC"
         });
       },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply,
-      USER_ID_ASC: ApiKeyOrderBy_USER_ID_ASCApply,
-      USER_ID_DESC: ApiKeyOrderBy_USER_ID_DESCApply
+      ROW_ID_ASC: UsageEventOrderBy_ROW_ID_ASCApply,
+      ROW_ID_DESC: UsageEventOrderBy_ROW_ID_DESCApply,
+      USER_ID_ASC: UsageEventOrderBy_USER_ID_ASCApply,
+      USER_ID_DESC: UsageEventOrderBy_USER_ID_DESCApply
     }
   },
   UsageEventOrderBy: {
@@ -5962,124 +5115,10 @@ export const enums = {
         });
         queryBuilder.setOrderIsUnique();
       },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply,
-      USER_ID_ASC: ApiKeyOrderBy_USER_ID_ASCApply,
-      USER_ID_DESC: ApiKeyOrderBy_USER_ID_DESCApply
-    }
-  },
-  UserOrderBy: {
-    values: {
-      IDENTITY_PROVIDER_ID_ASC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "identity_provider_id",
-          direction: "ASC"
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      IDENTITY_PROVIDER_ID_DESC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "identity_provider_id",
-          direction: "DESC"
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      PRIMARY_KEY_ASC(queryBuilder) {
-        userUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "ASC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      PRIMARY_KEY_DESC(queryBuilder) {
-        userUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "DESC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply
-    }
-  },
-  UserPreferenceOrderBy: {
-    values: {
-      PRIMARY_KEY_ASC(queryBuilder) {
-        user_preferenceUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "ASC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      PRIMARY_KEY_DESC(queryBuilder) {
-        user_preferenceUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "DESC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply,
-      USER_ID_ASC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "user_id",
-          direction: "ASC"
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      USER_ID_DESC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "user_id",
-          direction: "DESC"
-        });
-        queryBuilder.setOrderIsUnique();
-      }
-    }
-  },
-  WorkspaceOrderBy: {
-    values: {
-      ORGANIZATION_ID_ASC: ApiKeyOrderBy_ORGANIZATION_ID_ASCApply,
-      ORGANIZATION_ID_DESC: ApiKeyOrderBy_ORGANIZATION_ID_DESCApply,
-      PRIMARY_KEY_ASC(queryBuilder) {
-        workspaceUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "ASC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      PRIMARY_KEY_DESC(queryBuilder) {
-        workspaceUniques[0].attributes.forEach(attributeName => {
-          queryBuilder.orderBy({
-            attribute: attributeName,
-            direction: "DESC"
-          });
-        });
-        queryBuilder.setOrderIsUnique();
-      },
-      ROW_ID_ASC: ApiKeyOrderBy_ROW_ID_ASCApply,
-      ROW_ID_DESC: ApiKeyOrderBy_ROW_ID_DESCApply,
-      SLUG_ASC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "slug",
-          direction: "ASC"
-        });
-      },
-      SLUG_DESC(queryBuilder) {
-        queryBuilder.orderBy({
-          attribute: "slug",
-          direction: "DESC"
-        });
-      }
+      ROW_ID_ASC: UsageEventOrderBy_ROW_ID_ASCApply,
+      ROW_ID_DESC: UsageEventOrderBy_ROW_ID_DESCApply,
+      USER_ID_ASC: UsageEventOrderBy_USER_ID_ASCApply,
+      USER_ID_DESC: UsageEventOrderBy_USER_ID_DESCApply
     }
   }
 };
