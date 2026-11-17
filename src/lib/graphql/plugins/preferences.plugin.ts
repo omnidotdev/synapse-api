@@ -99,7 +99,6 @@ const preferencesPlugin = makeExtendSchemaPlugin({
               "anthropic",
               "openai",
               "google",
-              "nvidia",
               "groq",
               "mistral",
             ];
