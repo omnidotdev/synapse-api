@@ -113,7 +113,7 @@ const spec_apiKeyProvider = {
     }
   },
   extensions: {
-    oid: "19295",
+    oid: "16410",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -206,7 +206,7 @@ const workspaceCodec = recordCodec({
     }
   },
   extensions: {
-    oid: "19349",
+    oid: "16464",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -290,7 +290,7 @@ const spec_userPreference = {
     }
   },
   extensions: {
-    oid: "19336",
+    oid: "16451",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -396,7 +396,7 @@ const spec_providerKey = {
     }
   },
   extensions: {
-    oid: "19301",
+    oid: "16416",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -500,7 +500,7 @@ const spec_user = {
     }
   },
   extensions: {
-    oid: "19323",
+    oid: "16438",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -687,7 +687,7 @@ const spec_apiKey = {
     }
   },
   extensions: {
-    oid: "19282",
+    oid: "16397",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -847,7 +847,7 @@ const spec_usageEvent = {
     }
   },
   extensions: {
-    oid: "19311",
+    oid: "16426",
     isTableLike: true,
     pg: {
       serviceName: "main",
@@ -3916,7 +3916,7 @@ export const objects = {
               notifyUsageThreshold,
               notifyKeyExpiry
             } = args.input,
-            VALID_PROVIDERS = ["", "anthropic", "openai", "google", "nvidia", "groq", "mistral"];
+            VALID_PROVIDERS = ["", "anthropic", "openai", "google", "groq", "mistral"];
           if (defaultProvider !== void 0 && !VALID_PROVIDERS.includes(defaultProvider)) throw new GraphQLError(`Invalid provider. Must be one of: ${VALID_PROVIDERS.filter(Boolean).join(", ")}`, {
             extensions: {
               code: "BAD_USER_INPUT"
