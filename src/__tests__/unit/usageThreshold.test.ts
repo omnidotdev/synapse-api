@@ -91,7 +91,7 @@ describe("reportUsage - usage recording", () => {
 	});
 
 	test("accumulates daily token usage across multiple batches", async () => {
-		// Use free plan, BYOK only (managedTokenBudget = 0)
+		// Use free plan, no included managed-token budget (managedTokenBudget = 0)
 		const user = await userFactory.create(ctx.db, { plan: "free" });
 		const { hash, hint } = generateApiKey();
 		const apiKey = await apiKeyFactory.create(ctx.db, { userId: user.id, keyHash: hash, keyHint: hint });
