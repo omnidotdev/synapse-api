@@ -2,7 +2,11 @@ type PlanTier = "free" | "pro" | "team";
 
 type PlanRateLimits = {
   requestsPerMinute: number;
-  /** Max managed-mode tokens/month (-1 = unlimited, 0 = BYOK only) */
+  /**
+   * Included managed-mode token budget (catalog `managed_token_budget`). 0 means
+   * no included budget: managed usage is pay-as-you-go credits (or BYOK), so no
+   * budget threshold applies. A positive value enables the 80% threshold event
+   */
   managedTokenBudget: number;
 };
 
@@ -14,15 +18,15 @@ type PlanRateLimits = {
 const PLAN_RATE_LIMITS: Record<PlanTier, PlanRateLimits> = {
   free: {
     requestsPerMinute: 60,
-    managedTokenBudget: 0, // BYOK only on free tier (catalog SSOT: managed_token_budget = 0)
+    managedTokenBudget: 0, // catalog SSOT: managed_token_budget = 0
   },
   pro: {
     requestsPerMinute: 500,
-    managedTokenBudget: -1, // unlimited (pay as you go)
+    managedTokenBudget: 0, // catalog SSOT: managed_token_budget = 0 (pay-as-you-go credits)
   },
   team: {
     requestsPerMinute: 2_000,
-    managedTokenBudget: -1, // unlimited (pay as you go)
+    managedTokenBudget: 0, // catalog SSOT: managed_token_budget = 0 (pay-as-you-go credits)
   },
 };
 

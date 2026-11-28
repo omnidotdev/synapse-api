@@ -292,7 +292,7 @@ const reportUsageRoute = new Elysia().post(
           const dailyTokens = usage?.totalTokens ?? 0;
 
           // Only fire when crossing from below to at/above threshold (not on every batch)
-          // Skip threshold check for BYOK-only plans (managedTokenBudget === 0)
+          // Skip threshold check for plans with no included budget (managedTokenBudget <= 0)
           const tokensBeforeThisReport = Math.max(0, dailyTokens - batchTokens);
           const budget = limits.managedTokenBudget;
           const hasLimit = budget > 0;

@@ -46,6 +46,7 @@ const CATALOG_SSOT = {
     max_provider_keys: 10,
     max_workspaces: 10,
     analytics_retention_days: 90,
+    managed_token_budget: 0,
   },
   team: {
     monthlyPriceCents: 7_900,
@@ -57,6 +58,7 @@ const CATALOG_SSOT = {
     max_provider_keys: -1,
     max_workspaces: -1,
     analytics_retention_days: 365,
+    managed_token_budget: 0,
   },
 } as const;
 
@@ -73,19 +75,16 @@ describe("synapse catalog parity", () => {
     }
   });
 
+  // Every tier carries no included budget (0): managed usage is pay-as-you-go
+  // credits billed via overage rather than a fixed monthly token budget
   describe("managed_token_budget (plans.config.ts)", () => {
-    test("free is BYOK only (0), matching catalog SSOT", () => {
-      expect(PLAN_RATE_LIMITS.free.managedTokenBudget).toBe(
-        CATALOG_SSOT.free.managed_token_budget,
-      );
-    });
-
-    // Paid tiers meter managed usage as unlimited pay-as-you-go at runtime (-1),
-    // billed via overage rather than a fixed monthly token budget
-    test("pro and team are unlimited pay-as-you-go (-1)", () => {
-      expect(PLAN_RATE_LIMITS.pro.managedTokenBudget).toBe(-1);
-      expect(PLAN_RATE_LIMITS.team.managedTokenBudget).toBe(-1);
-    });
+    for (const tier of TIERS) {
+      test(`${tier} matches catalog SSOT`, () => {
+        expect(PLAN_RATE_LIMITS[tier].managedTokenBudget).toBe(
+          CATALOG_SSOT[tier].managed_token_budget,
+        );
+      });
+    }
   });
 
   describe("max_requests_per_month (requestLimits.config.ts)", () => {
